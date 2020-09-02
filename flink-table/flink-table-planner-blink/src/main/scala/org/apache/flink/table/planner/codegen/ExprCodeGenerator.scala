@@ -80,6 +80,12 @@ class ExprCodeGenerator(ctx: CodeGeneratorContext, nullableInput: Boolean)
   var input2FieldMapping: Option[Array[Int]] = None
 
   /**
+   * information of the user-defined constructor
+   * */
+  var functionContextTerm: Option[String] = None
+  var converterClassLoaderTerm: Option[String] = None
+
+  /**
     * Bind the input information, should be called before generating expression.
     */
   def bindInput(
@@ -106,6 +112,19 @@ class ExprCodeGenerator(ctx: CodeGeneratorContext, nullableInput: Boolean)
     this
   }
 
+  /**
+   * In some cases, we should use user-defined input for constructor. For example,
+   * ScalaFunctionCodeGen allows to use user-defined context term rather than get
+   * from invoking getRuntimeContext() method.
+   * */
+  def bindConstructorTerm(
+      inputFunctionContextTerm: String,
+      inputClassLoaderTerm: String): ExprCodeGenerator = {
+    functionContextTerm = Some(inputFunctionContextTerm)
+    converterClassLoaderTerm = Some(inputClassLoaderTerm)
+    this
+  }
+
   private lazy val input1Mapping: Array[Int] = input1FieldMapping match {
     case Some(mapping) => mapping
     case _ => fieldIndices(input1Type)
@@ -126,7 +145,7 @@ class ExprCodeGenerator(ctx: CodeGeneratorContext, nullableInput: Boolean)
       Array(0)
     }
   }
- 
+
   /**
     * Generates an expression from a RexNode. If objects or variables can be reused, they will be
     * added to reusable code sections internally.
@@ -788,7 +807,9 @@ class ExprCodeGenerator(ctx: CodeGeneratorContext, nullableInput: Boolean)
 
       case ssf: ScalarSqlFunction =>
         new ScalarFunctionCallGen(
-          ssf.makeFunction(getOperandLiterals(operands), operands.map(_.resultType).toArray))
+          ssf.makeFunction(getOperandLiterals(operands), operands.map(_.resultType).toArray),
+          functionContextTerm.orNull,
+          converterClassLoaderTerm.orNull)
             .generate(ctx, operands, resultType)
 
       case tsf: TableSqlFunction =>
@@ -798,7 +819,9 @@ class ExprCodeGenerator(ctx: CodeGeneratorContext, nullableInput: Boolean)
             .generate(ctx, operands, resultType)
 
       case _: BridgingSqlFunction =>
-        new BridgingSqlFunctionCallGen(call).generate(ctx, operands, resultType)
+        new BridgingSqlFunctionCallGen(
+          call, functionContextTerm.orNull, converterClassLoaderTerm.orNull)
+          .generate(ctx, operands, resultType)
 
       // advanced scalar functions
       case sqlOperator: SqlOperator =>

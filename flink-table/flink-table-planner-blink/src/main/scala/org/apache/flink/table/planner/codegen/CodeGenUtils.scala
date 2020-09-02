@@ -789,7 +789,8 @@ object CodeGenUtils {
    */
   def genToInternalConverter(
       ctx: CodeGeneratorContext,
-      sourceDataType: DataType)
+      sourceDataType: DataType,
+      classLoaderTerm: String = null)
     : String => String = {
 
     // fallback to old stack if at least one legacy type is present
@@ -802,7 +803,7 @@ object CodeGenUtils {
     } else {
       val internalTypeTerm = boxedTypeTermForType(sourceDataType.getLogicalType)
       val externalTypeTerm = typeTerm(sourceDataType.getConversionClass)
-      val converterTerm = ctx.addReusableConverter(sourceDataType)
+      val converterTerm = ctx.addReusableConverter(sourceDataType, classLoaderTerm)
       externalTerm =>
         s"($internalTypeTerm) $converterTerm.toInternalOrNull(($externalTypeTerm) $externalTerm)"
     }
@@ -818,9 +819,10 @@ object CodeGenUtils {
   def genToInternalConverter(
       ctx: CodeGeneratorContext,
       sourceDataType: DataType,
-      externalTerm: String)
+      externalTerm: String,
+      classLoaderTerm: String)
     : String = {
-    genToInternalConverter(ctx, sourceDataType)(externalTerm)
+    genToInternalConverter(ctx, sourceDataType, classLoaderTerm)(externalTerm)
   }
 
   /**
@@ -833,7 +835,8 @@ object CodeGenUtils {
   def genToInternalConverterAll(
       ctx: CodeGeneratorContext,
       sourceDataType: DataType,
-      externalTerm: String)
+      externalTerm: String,
+      classLoaderTerm: String = null)
     : GeneratedExpression = {
 
     // fallback to old stack if at least one legacy type is present
@@ -847,7 +850,7 @@ object CodeGenUtils {
     val internalResultTerm = if (isInternal(sourceDataType)) {
       s"$externalTerm"
     } else {
-      genToInternalConverter(ctx, sourceDataType)(externalTerm)
+      genToInternalConverter(ctx, sourceDataType, classLoaderTerm)(externalTerm)
     }
     // extract null term from result term
     if (sourceClass.isPrimitive) {
@@ -867,7 +870,8 @@ object CodeGenUtils {
   def genToExternalConverter(
       ctx: CodeGeneratorContext,
       targetDataType: DataType,
-      internalTerm: String)
+      internalTerm: String,
+      classLoaderTerm: String = null)
     : String = {
 
     // fallback to old stack if at least one legacy type is present
@@ -880,7 +884,7 @@ object CodeGenUtils {
     } else {
       val internalTypeTerm = boxedTypeTermForType(targetDataType.getLogicalType)
       val externalTypeTerm = typeTerm(targetDataType.getConversionClass)
-      val converterTerm = ctx.addReusableConverter(targetDataType)
+      val converterTerm = ctx.addReusableConverter(targetDataType, classLoaderTerm)
       s"($externalTypeTerm) $converterTerm.toExternal(($internalTypeTerm) $internalTerm)"
     }
   }
@@ -895,7 +899,8 @@ object CodeGenUtils {
   def genToExternalConverterAll(
       ctx: CodeGeneratorContext,
       targetDataType: DataType,
-      internalExpr: GeneratedExpression)
+      internalExpr: GeneratedExpression,
+      classLoaderTerm: String = null)
     : String = {
 
     // fallback to old stack if at least one legacy type is present
@@ -915,7 +920,7 @@ object CodeGenUtils {
     val externalResultTerm = if (isInternal(targetDataType)) {
       s"($targetTypeTerm) ${internalExpr.resultTerm}"
     } else {
-      genToExternalConverter(ctx, targetDataType, internalExpr.resultTerm)
+      genToExternalConverter(ctx, targetDataType, internalExpr.resultTerm, classLoaderTerm)
     }
     // merge null term into the result term
     if (targetDataType.getConversionClass.isPrimitive) {

@@ -19,7 +19,9 @@
 package org.apache.flink.table.connector.source.abilities;
 
 import org.apache.flink.annotation.PublicEvolving;
+import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.table.connector.source.ScanTableSource;
+import org.apache.flink.table.data.RowData;
 
 /**
  * Enables to push down watermarks into a {@link ScanTableSource}.
@@ -40,12 +42,6 @@ import org.apache.flink.table.connector.source.ScanTableSource;
  *
  * <p>However, for correctness, it might be necessary to perform the watermark generation as early as
  * possible in order to be close to the actual data generation within a source's data partition.
- *
- * <p>This interface provides a {@link WatermarkProvider} that needs to be applied to a runtime
- * implementation. Most built-in Flink sources provide a way of setting the watermark generator.
- *
- * <p>Note: In many cases, watermarks are generated from computed columns. If a source implements this
- * interface, it is recommended to also implement {@link SupportsComputedColumnPushDown}.
  */
 @PublicEvolving
 public interface SupportsWatermarkPushDown {
@@ -61,8 +57,26 @@ public interface SupportsWatermarkPushDown {
 	 *
 	 * <p>Implementations need to perform an {@code instanceof} check and fail with an exception if the given
 	 * {@link WatermarkProvider} is unsupported.
+	 *
+	 * @deprecated use {@link #applyWatermark(WatermarkStrategy)} instead.
 	 */
-	void applyWatermark(WatermarkProvider provider);
+	@Deprecated
+	default void applyWatermark(WatermarkProvider provider) {
+		// do nothing.
+	}
+
+	/**
+	 * Provides actual runtime implementation for generating watermarks.
+	 *
+	 * <p>{@code org.apache.flink.api.common.eventtime.WatermarkStrategy} is the new interface to specify
+	 * watermark strategy.
+	 *
+	 * <p>See {@code org.apache.flink.table.connector.source.abilities} in {@code flink-table-api-java-bridge}.
+	 *
+	 * <p>Implementations need to perform an {@code instanceof} check and fail with an exception if the given
+	 * {@link WatermarkStrategy} is unsupported.
+	 */
+	void applyWatermark(WatermarkStrategy<RowData> watermarkStrategy);
 
 	// --------------------------------------------------------------------------------------------
 
@@ -71,7 +85,10 @@ public interface SupportsWatermarkPushDown {
 	 *
 	 * <p>There exist different interfaces for runtime implementation which is why {@link WatermarkProvider}
 	 * serves as the base interface.
+	 *
+	 * @deprecated use {@code org.apache.flink.api.common.eventtime.WatermarkStrategy} instead.
 	 */
+	@Deprecated
 	interface WatermarkProvider {
 		// marker interface that will be filled after FLIP-126:
 		// WatermarkGenerator<RowData> getWatermarkGenerator();

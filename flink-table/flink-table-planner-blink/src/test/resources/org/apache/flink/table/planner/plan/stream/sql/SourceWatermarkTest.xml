@@ -1,0 +1,150 @@
+<?xml version="1.0" ?>
+<!--
+Licensed to the Apache Software Foundation (ASF) under one or more
+contributor license agreements.  See the NOTICE file distributed with
+this work for additional information regarding copyright ownership.
+The ASF licenses this file to you under the Apache License, Version 2.0
+(the "License"); you may not use this file except in compliance with
+the License.  You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+<Root>
+  <TestCase name="testComputedColumnWithMultipleInputs">
+    <Resource name="sql">
+      <![CDATA[select * from MyTable]]>
+    </Resource>
+    <Resource name="planBefore">
+      <![CDATA[
+LogicalProject(a=[$0], b=[$1], c=[$2])
++- LogicalWatermarkAssigner(rowtime=[c], watermark=[-($2, 5000:INTERVAL SECOND)])
+   +- LogicalProject(a=[$0], b=[$1], c=[TO_TIMESTAMP($0, $1)])
+      +- LogicalTableScan(table=[[default_catalog, default_database, MyTable]])
+]]>
+    </Resource>
+    <Resource name="planAfter">
+      <![CDATA[
+Calc(select=[a, b, Reinterpret(TO_TIMESTAMP(a, b)) AS c])
++- TableSourceScan(table=[[default_catalog, default_database, MyTable, watermark=[-(TO_TIMESTAMP($0, $1), 5000:INTERVAL SECOND)]]], fields=[a, b])
+]]>
+    </Resource>
+  </TestCase>
+  <TestCase name="testSimpleTranspose">
+    <Resource name="sql">
+      <![CDATA[select * from MyTable]]>
+    </Resource>
+    <Resource name="planBefore">
+      <![CDATA[
+LogicalProject(a=[$0], b=[$1], c=[$2], d=[$3])
++- LogicalWatermarkAssigner(rowtime=[d], watermark=[-($3, 5000:INTERVAL SECOND)])
+   +- LogicalProject(a=[$0], b=[$1], c=[$2], d=[+($2, 5000:INTERVAL SECOND)])
+      +- LogicalTableScan(table=[[default_catalog, default_database, MyTable]])
+]]>
+    </Resource>
+    <Resource name="planAfter">
+      <![CDATA[
+Calc(select=[a, b, c, Reinterpret(+(c, 5000:INTERVAL SECOND)) AS d])
++- TableSourceScan(table=[[default_catalog, default_database, MyTable, watermark=[-(+($2, 5000:INTERVAL SECOND), 5000:INTERVAL SECOND)]]], fields=[a, b, c])
+]]>
+    </Resource>
+  </TestCase>
+  <TestCase name="testSimpleTransposeNotNull">
+    <Resource name="sql">
+      <![CDATA[select * from MyTable]]>
+    </Resource>
+    <Resource name="planBefore">
+      <![CDATA[
+LogicalProject(a=[$0], b=[$1], c=[$2], d=[$3])
++- LogicalWatermarkAssigner(rowtime=[d], watermark=[-($3, 5000:INTERVAL SECOND)])
+   +- LogicalProject(a=[$0], b=[$1], c=[$2], d=[+($2, 5000:INTERVAL SECOND)])
+      +- LogicalTableScan(table=[[default_catalog, default_database, MyTable]])
+]]>
+    </Resource>
+    <Resource name="planAfter">
+      <![CDATA[
+Calc(select=[a, b, c, Reinterpret(+(c, 5000:INTERVAL SECOND)) AS d])
++- TableSourceScan(table=[[default_catalog, default_database, MyTable, watermark=[-(+($2, 5000:INTERVAL SECOND), 5000:INTERVAL SECOND)]]], fields=[a, b, c])
+]]>
+    </Resource>
+  </TestCase>
+  <TestCase name="testSimpleWatermark">
+    <Resource name="sql">
+      <![CDATA[select * from MyTable]]>
+    </Resource>
+    <Resource name="planBefore">
+      <![CDATA[
+LogicalProject(a=[$0], b=[$1], c=[$2])
++- LogicalWatermarkAssigner(rowtime=[c], watermark=[-($2, 5000:INTERVAL SECOND)])
+   +- LogicalTableScan(table=[[default_catalog, default_database, MyTable]])
+]]>
+    </Resource>
+    <Resource name="planAfter">
+      <![CDATA[
+TableSourceScan(table=[[default_catalog, default_database, MyTable, watermark=[-($2, 5000:INTERVAL SECOND)]]], fields=[a, b, c])
+]]>
+    </Resource>
+  </TestCase>
+  <TestCase name="testTransposeWithNestedRow">
+    <Resource name="sql">
+      <![CDATA[select * from MyTable]]>
+    </Resource>
+    <Resource name="planBefore">
+      <![CDATA[
+LogicalProject(a=[$0], b=[$1], c=[$2], g=[$3])
++- LogicalWatermarkAssigner(rowtime=[g], watermark=[-($3, 5000:INTERVAL SECOND)])
+   +- LogicalProject(a=[$0], b=[$1], c=[$2], g=[$2.d.f])
+      +- LogicalTableScan(table=[[default_catalog, default_database, MyTable]])
+]]>
+    </Resource>
+    <Resource name="planAfter">
+      <![CDATA[
+Calc(select=[a, b, c, Reinterpret(c.d.f) AS g])
++- TableSourceScan(table=[[default_catalog, default_database, MyTable, watermark=[-($2.d.f, 5000:INTERVAL SECOND)]]], fields=[a, b, c])
+]]>
+    </Resource>
+  </TestCase>
+  <TestCase name="testTransposeWithRow">
+    <Resource name="sql">
+      <![CDATA[select * from MyTable]]>
+    </Resource>
+    <Resource name="planBefore">
+      <![CDATA[
+LogicalProject(a=[$0], b=[$1], c=[$2], d=[$3])
++- LogicalWatermarkAssigner(rowtime=[d], watermark=[-($3, 5000:INTERVAL SECOND)])
+   +- LogicalProject(a=[$0], b=[$1], c=[$2], d=[$2.d])
+      +- LogicalTableScan(table=[[default_catalog, default_database, MyTable]])
+]]>
+    </Resource>
+    <Resource name="planAfter">
+      <![CDATA[
+Calc(select=[a, b, c, Reinterpret(c.d) AS d])
++- TableSourceScan(table=[[default_catalog, default_database, MyTable, watermark=[-($2.d, 5000:INTERVAL SECOND)]]], fields=[a, b, c])
+]]>
+    </Resource>
+  </TestCase>
+  <TestCase name="testTransposeWithUdf">
+    <Resource name="sql">
+      <![CDATA[select * from MyTable]]>
+    </Resource>
+    <Resource name="planBefore">
+      <![CDATA[
+LogicalProject(a=[$0], b=[$1], c=[$2], d=[$3])
++- LogicalWatermarkAssigner(rowtime=[d], watermark=[-($3, 5000:INTERVAL SECOND)])
+   +- LogicalProject(a=[$0], b=[$1], c=[$2], d=[func1($2)])
+      +- LogicalTableScan(table=[[default_catalog, default_database, MyTable]])
+]]>
+    </Resource>
+    <Resource name="planAfter">
+      <![CDATA[
+Calc(select=[a, b, c, Reinterpret(func1(c)) AS d])
++- TableSourceScan(table=[[default_catalog, default_database, MyTable, watermark=[-(func1($2), 5000:INTERVAL SECOND)]]], fields=[a, b, c])
+]]>
+    </Resource>
+  </TestCase>
+</Root>

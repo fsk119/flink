@@ -19,13 +19,15 @@
 package org.apache.flink.table.planner.codegen
 
 import org.apache.flink.configuration.Configuration
-import org.apache.flink.table.api.TableConfig
+import org.apache.flink.table.api.{TableConfig, TableException}
 import org.apache.flink.table.planner.calcite.FlinkTypeFactory
 import org.apache.flink.table.planner.codegen.CodeGenUtils.{ROW_DATA, newName}
 import org.apache.flink.table.planner.codegen.Indenter.toISC
 import org.apache.flink.table.runtime.generated.{GeneratedWatermarkGenerator, WatermarkGenerator}
 import org.apache.flink.table.types.logical.{LogicalTypeRoot, RowType}
 import org.apache.calcite.rex.RexNode
+import org.apache.flink.api.common.functions.RuntimeContext
+import org.apache.flink.table.functions.FunctionContext
 
 /**
   * A code generator for generating [[WatermarkGenerator]]s.
@@ -35,7 +37,9 @@ object WatermarkGeneratorCodeGenerator {
   def generateWatermarkGenerator(
       config: TableConfig,
       inputType: RowType,
-      watermarkExpr: RexNode): GeneratedWatermarkGenerator = {
+      watermarkExpr: RexNode,
+      contextTerm: String = null,
+      classLoaderTerm: String = null): GeneratedWatermarkGenerator = {
     // validation
     val watermarkOutputType = FlinkTypeFactory.toLogicalType(watermarkExpr.getType)
     if (watermarkOutputType.getTypeRoot != LogicalTypeRoot.TIMESTAMP_WITHOUT_TIME_ZONE) {
@@ -47,7 +51,30 @@ object WatermarkGeneratorCodeGenerator {
     val ctx = CodeGeneratorContext(config)
     val generator = new ExprCodeGenerator(ctx, false)
       .bindInput(inputType, inputTerm = "row")
+      .bindConstructorTerm(contextTerm, classLoaderTerm)
     val generatedExpr = generator.generateExpression(watermarkExpr)
+
+    if (contextTerm != null && classLoaderTerm != null) {
+      ctx.addReusableMember(
+        s"""
+          |private transient ${classOf[FunctionContext].getCanonicalName} $contextTerm;
+          |private transient ${classOf[ClassLoader].getCanonicalName} $classLoaderTerm;
+          |""".stripMargin
+      )
+      ctx.addReusableInitStatement(
+        s"""
+           |int len = references.length;
+           |$contextTerm = (${classOf[FunctionContext].getCanonicalName}) references[len-2];
+           |$classLoaderTerm = (${classOf[ClassLoader].getCanonicalName}) references[len-1];
+           |""".stripMargin
+
+      )
+    } else if ((contextTerm == null && classLoaderTerm != null) ||
+                contextTerm != null && classLoaderTerm == null) {
+      throw new TableException(
+        "Term contextTerm and classLoaderTerm must be set together or " +
+          "neither of terms should be set.")
+    }
 
     val funcCode =
       j"""

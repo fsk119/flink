@@ -38,7 +38,9 @@ import org.apache.flink.table.types.utils.TypeConversions.fromLegacyInfoToDataTy
   *
   * @param scalarFunction user-defined [[ScalarFunction]] that might be overloaded
   */
-class ScalarFunctionCallGen(scalarFunction: ScalarFunction) extends CallGenerator {
+class ScalarFunctionCallGen(scalarFunction: ScalarFunction,
+                            contextTerm: String = null,
+                            classLoaderTerm: String = null) extends CallGenerator {
 
   override def generate(
       ctx: CodeGeneratorContext,
@@ -52,7 +54,7 @@ class ScalarFunctionCallGen(scalarFunction: ScalarFunction) extends CallGenerato
     val parameters = prepareUDFArgs(ctx, operands, scalarFunction)
 
     // generate function call
-    val functionReference = ctx.addReusableFunction(scalarFunction)
+    val functionReference = ctx.addReusableFunction(scalarFunction, contextTerm = contextTerm)
     val resultTypeTerm = if (resultClass.isPrimitive) {
       primitiveTypeTermForType(returnType)
     } else {
@@ -124,7 +126,7 @@ class ScalarFunctionCallGen(scalarFunction: ScalarFunction) extends CallGenerato
     if (isInternalClass(t)) {
       s"(${boxedTypeTermForType(LogicalTypeDataTypeConverter.fromDataTypeToLogicalType(t))}) $term"
     } else {
-      genToInternalConverter(ctx, t, term)
+      genToInternalConverter(ctx, t, term, classLoaderTerm)
     }
   }
 
@@ -163,7 +165,8 @@ object ScalarFunctionCallGen {
           } else {
             signatureTypes(i)
           }
-        val externalResultTerm = genToExternalConverterAll(ctx, signatureType, operandExpr)
+        val externalResultTerm =
+          genToExternalConverterAll(ctx, signatureType, operandExpr)
         operandExpr.copy(resultTerm = externalResultTerm)
       }
     }

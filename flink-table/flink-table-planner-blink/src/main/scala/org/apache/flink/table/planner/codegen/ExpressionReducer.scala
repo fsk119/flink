@@ -31,12 +31,13 @@ import org.apache.flink.table.planner.plan.utils.PythonUtil.containsPythonCall
 import org.apache.flink.table.types.DataType
 import org.apache.flink.table.types.logical.RowType
 import org.apache.flink.table.util.TimestampStringUtils.fromLocalDateTime
-
 import org.apache.calcite.avatica.util.ByteString
 import org.apache.calcite.rex.{RexBuilder, RexExecutor, RexNode}
 import org.apache.calcite.sql.`type`.SqlTypeName
-
 import java.io.File
+import java.util
+
+import org.apache.flink.api.common.externalresource.ExternalResourceInfo
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ListBuffer
@@ -244,7 +245,7 @@ class ExpressionReducer(
   *
   * @param parameters User-defined configuration set in [[TableConfig]].
   */
-class ConstantFunctionContext(parameters: Configuration) extends FunctionContext(null) {
+class ConstantFunctionContext(parameters: Configuration) extends FunctionContext {
 
   override def getMetricGroup: MetricGroup = {
     throw new UnsupportedOperationException("getMetricGroup is not supported when optimizing")
@@ -264,6 +265,14 @@ class ConstantFunctionContext(parameters: Configuration) extends FunctionContext
     */
   override def getJobParameter(key: String, defaultValue: String): String = {
     parameters.getString(key, defaultValue)
+  }
+
+  /**
+   * Get the external resource information.
+   */
+  override def getExternalResourceInfos(resourceName: String): util.Set[ExternalResourceInfo] = {
+    throw new UnsupportedOperationException(
+      "getExternalResourceInfos is not supported when optmizing.")
   }
 }
 

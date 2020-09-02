@@ -58,10 +58,14 @@ abstract class WatermarkAssigner(
   }
 
   override def explainTerms(pw: RelWriter): RelWriter = {
-    val rowtimeFieldName = inputRel.getRowType.getFieldNames.get(rowtimeFieldIndex)
-    super.explainTerms(pw)
-      .item("rowtime", rowtimeFieldName)
-      .item("watermark", watermarkExpr.toString)
+    if (rowtimeFieldIndex == -1) {
+      super.explainTerms(pw).item("watermark", watermarkExpr)
+    } else{
+      val rowtimeFieldName = inputRel.getRowType.getFieldNames.get(rowtimeFieldIndex)
+      super.explainTerms(pw)
+        .item("rowtime", rowtimeFieldName)
+        .item("watermark", watermarkExpr.toString)
+    }
   }
 
   override def copy(traitSet: RelTraitSet, inputs: util.List[RelNode]): RelNode = {

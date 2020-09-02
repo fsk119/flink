@@ -19,6 +19,8 @@
 package org.apache.flink.table.planner.factories;
 
 import org.apache.flink.api.common.ExecutionConfig;
+import org.apache.flink.api.common.eventtime.Watermark;
+import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.java.io.CollectionInputFormat;
 import org.apache.flink.configuration.ConfigOption;
@@ -43,6 +45,7 @@ import org.apache.flink.table.connector.source.abilities.SupportsFilterPushDown;
 import org.apache.flink.table.connector.source.abilities.SupportsLimitPushDown;
 import org.apache.flink.table.connector.source.abilities.SupportsPartitionPushDown;
 import org.apache.flink.table.connector.source.abilities.SupportsProjectionPushDown;
+import org.apache.flink.table.connector.source.abilities.SupportsWatermarkPushDown;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.expressions.ResolvedExpression;
 import org.apache.flink.table.factories.DynamicTableSinkFactory;
@@ -146,6 +149,10 @@ public final class TestValuesTableFactory implements DynamicTableSourceFactory, 
 	public static void clearAllData() {
 		registeredData.clear();
 		TestValuesRuntimeFunctions.clearResults();
+	}
+
+	public static ArrayList<Watermark> getWatermarkOutput() {
+		return new ArrayList<Watermark>(TestValuesFromElementFunction.watermarkHistory);
 	}
 
 	/**
@@ -437,7 +444,8 @@ public final class TestValuesTableFactory implements DynamicTableSourceFactory, 
 		SupportsProjectionPushDown,
 		SupportsFilterPushDown,
 		SupportsLimitPushDown,
-		SupportsPartitionPushDown{
+		SupportsPartitionPushDown,
+		SupportsWatermarkPushDown {
 
 		private TableSchema physicalSchema;
 		private final ChangelogMode changelogMode;
@@ -452,6 +460,7 @@ public final class TestValuesTableFactory implements DynamicTableSourceFactory, 
 		private final Set<String> filterableFields;
 		private long limit;
 		private List<Map<String, String>> allPartitions;
+		private WatermarkStrategy<RowData> watermarkStrategy;
 
 		private TestValuesTableSource(
 				TableSchema physicalSchema,
@@ -502,6 +511,14 @@ public final class TestValuesTableFactory implements DynamicTableSourceFactory, 
 					return SourceFunctionProvider.of(
 						new FromElementsFunction<>(serializer, values),
 						bounded);
+				} catch (IOException e) {
+					throw new TableException("Fail to init source function", e);
+				}
+			} else if (runtimeSource.equals("RecordWatermarkSourceFunction")) {
+				try {
+					return SourceFunctionProvider.of(
+							new TestValuesFromElementFunction(serializer, values, watermarkStrategy),
+							bounded);
 				} catch (IOException e) {
 					throw new TableException("Fail to init source function", e);
 				}
@@ -688,6 +705,13 @@ public final class TestValuesTableFactory implements DynamicTableSourceFactory, 
 		@Override
 		public void applyLimit(long limit) {
 			this.limit = limit;
+		}
+
+		@Override
+		public void applyWatermark(WatermarkStrategy<RowData> watermarkStrategy) {
+			this.watermarkStrategy = watermarkStrategy;
+			// clear data
+			TestValuesFromElementFunction.watermarkHistory = new ArrayList<>();
 		}
 	}
 

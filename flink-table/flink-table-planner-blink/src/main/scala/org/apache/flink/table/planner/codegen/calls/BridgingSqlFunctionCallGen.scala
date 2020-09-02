@@ -48,7 +48,10 @@ import java.util.Collections
  * generator will be a reference to a [[WrappingCollector]]. Furthermore, atomic types are wrapped
  * into a row by the collector.
  */
-class BridgingSqlFunctionCallGen(call: RexCall) extends CallGenerator {
+class BridgingSqlFunctionCallGen(
+    call: RexCall,
+    contextTerm: String = null,
+    classLoaderTerm: String = null) extends CallGenerator {
 
   private val function: BridgingSqlFunction = call.getOperator.asInstanceOf[BridgingSqlFunction]
   private val udf: UserDefinedFunction = function.getDefinition.asInstanceOf[UserDefinedFunction]
@@ -103,7 +106,7 @@ class BridgingSqlFunctionCallGen(call: RexCall) extends CallGenerator {
       returnType: LogicalType)
     : GeneratedExpression = {
 
-    val functionTerm = ctx.addReusableFunction(udf)
+    val functionTerm = ctx.addReusableFunction(udf, contextTerm = contextTerm)
 
     // operand conversion
     val externalOperands = prepareExternalOperands(ctx, operands, argumentDataTypes)
@@ -221,7 +224,8 @@ class BridgingSqlFunctionCallGen(call: RexCall) extends CallGenerator {
       s"($externalResultTypeTerm) (${typeTerm(externalResultClassBoxed)})"
     }
     val externalResultTerm = ctx.addReusableLocalVariable(externalResultTypeTerm, "externalResult")
-    val internalExpr = genToInternalConverterAll(ctx, outputDataType, externalResultTerm)
+    val internalExpr =
+      genToInternalConverterAll(ctx, outputDataType, externalResultTerm, classLoaderTerm)
 
     // function call
     internalExpr.copy(code =
@@ -241,7 +245,8 @@ class BridgingSqlFunctionCallGen(call: RexCall) extends CallGenerator {
     operands
       .zip(argumentDataTypes)
       .map { case (operand, dataType) =>
-        operand.copy(resultTerm = genToExternalConverterAll(ctx, dataType, operand))
+        operand.copy(
+          resultTerm = genToExternalConverterAll(ctx, dataType, operand, classLoaderTerm))
       }
   }
 
