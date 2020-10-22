@@ -194,7 +194,11 @@ public abstract class KafkaTestBase extends TestLogger {
 	}
 
 	protected static void createTestTopic(String topic, int numberOfPartitions, int replicationFactor) {
-		kafkaServer.createTestTopic(topic, numberOfPartitions, replicationFactor);
+		createTestTopic(topic, numberOfPartitions, replicationFactor, new Properties());
+	}
+
+	protected static void createTestTopic(String topic, int numberOfPartitions, int replicationFactor, Properties props) {
+		kafkaServer.createTestTopic(topic, numberOfPartitions, replicationFactor, props);
 	}
 
 	protected static void deleteTestTopic(String topic) {

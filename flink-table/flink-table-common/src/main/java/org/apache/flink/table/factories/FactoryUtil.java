@@ -589,7 +589,7 @@ public final class FactoryUtil {
 
 		private String formatPrefix(Factory formatFactory, ConfigOption<String> formatOption) {
 			String identifier = formatFactory.factoryIdentifier();
-			if (formatOption.key().equals(FORMAT_KEY)) {
+			if (formatOption.key().equals(FORMAT_KEY) || formatOption.equals(KEY_FORMAT) || formatOption.equals(VALUE_FORMAT)) {
 				return identifier + ".";
 			} else if (formatOption.key().endsWith(FORMAT_SUFFIX)) {
 				// extract the key prefix, e.g. extract 'key' from 'key.format'

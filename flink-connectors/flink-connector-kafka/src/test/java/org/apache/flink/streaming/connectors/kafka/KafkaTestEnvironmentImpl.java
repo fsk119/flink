@@ -185,7 +185,7 @@ public class KafkaTestEnvironmentImpl extends KafkaTestEnvironment {
 		LOG.info("Creating topic {}", topic);
 		try (AdminClient adminClient = AdminClient.create(getStandardProperties())) {
 			NewTopic topicObj = new NewTopic(topic, numberOfPartitions, (short) replicationFactor);
-			adminClient.createTopics(Collections.singleton(topicObj)).all().get();
+			adminClient.createTopics(Collections.singleton(topicObj.configs((Map) properties))).all().get();
 		} catch (Exception e) {
 			e.printStackTrace();
 			fail("Create test topic : " + topic + " failed, " + e.getMessage());

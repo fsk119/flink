@@ -30,8 +30,12 @@ import org.apache.flink.table.connector.sink.DynamicTableSink;
 import org.apache.flink.table.connector.source.DynamicTableSource;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.DataType;
+import org.apache.flink.types.RowKind;
+
+import javax.annotation.Nullable;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
@@ -52,12 +56,21 @@ public class TestFormatFactory implements DeserializationFormatFactory, Serializ
 		.booleanType()
 		.defaultValue(false);
 
+	public static final ConfigOption<List<String>> CHANGELOG_MODE = ConfigOptions
+		.key("changelog-mode")
+		.stringType()
+		.asList()
+		.noDefaultValue();
+
 	@Override
 	public DecodingFormat<DeserializationSchema<RowData>> createDecodingFormat(
 			DynamicTableFactory.Context context,
 			ReadableConfig formatConfig) {
 		FactoryUtil.validateFactoryOptions(this, formatConfig);
-		return new DecodingFormatMock(formatConfig.get(DELIMITER), formatConfig.get(FAIL_ON_MISSING));
+		return new DecodingFormatMock(
+				formatConfig.get(DELIMITER),
+				formatConfig.get(FAIL_ON_MISSING),
+				parseChangelogMode(formatConfig));
 	}
 
 	@Override
@@ -65,7 +78,7 @@ public class TestFormatFactory implements DeserializationFormatFactory, Serializ
 			DynamicTableFactory.Context context,
 			ReadableConfig formatConfig) {
 		FactoryUtil.validateFactoryOptions(this, formatConfig);
-		return new EncodingFormatMock(formatConfig.get(DELIMITER));
+		return new EncodingFormatMock(formatConfig.get(DELIMITER), parseChangelogMode(formatConfig));
 	}
 
 	@Override
@@ -84,7 +97,40 @@ public class TestFormatFactory implements DeserializationFormatFactory, Serializ
 	public Set<ConfigOption<?>> optionalOptions() {
 		final Set<ConfigOption<?>> options = new HashSet<>();
 		options.add(FAIL_ON_MISSING);
+		options.add(CHANGELOG_MODE);
 		return options;
+	}
+
+	// --------------------------------------------------------------------------------------------
+	// Utils
+	// --------------------------------------------------------------------------------------------
+
+	private ChangelogMode parseChangelogMode(ReadableConfig config) {
+		if (config.getOptional(CHANGELOG_MODE).isPresent()) {
+			ChangelogMode.Builder builder = ChangelogMode.newBuilder();
+			for (String mode: config.get(CHANGELOG_MODE)) {
+				switch (mode) {
+					case "I":
+						builder.addContainedKind(RowKind.INSERT);
+						break;
+					case "UA":
+						builder.addContainedKind(RowKind.UPDATE_AFTER);
+						break;
+					case "UB":
+						builder.addContainedKind(RowKind.UPDATE_BEFORE);
+						break;
+					case "D":
+						builder.addContainedKind(RowKind.DELETE);
+						break;
+					default:
+						throw new IllegalArgumentException(
+								String.format("Unrecognized type %s for config %s", mode, CHANGELOG_MODE.key()));
+				}
+			}
+			return builder.build();
+		} else {
+			return null;
+		}
 	}
 
 	// --------------------------------------------------------------------------------------------
@@ -98,10 +144,17 @@ public class TestFormatFactory implements DeserializationFormatFactory, Serializ
 
 		public final String delimiter;
 		public final Boolean failOnMissing;
+		@Nullable
+		public final ChangelogMode changelogMode;
 
 		public DecodingFormatMock(String delimiter, Boolean failOnMissing) {
+			this(delimiter, failOnMissing, null);
+		}
+
+		public DecodingFormatMock(String delimiter, Boolean failOnMissing, @Nullable ChangelogMode changelogMode) {
 			this.delimiter = delimiter;
 			this.failOnMissing = failOnMissing;
+			this.changelogMode = changelogMode;
 		}
 
 		@Override
@@ -113,7 +166,7 @@ public class TestFormatFactory implements DeserializationFormatFactory, Serializ
 
 		@Override
 		public ChangelogMode getChangelogMode() {
-			return null;
+			return changelogMode;
 		}
 
 		@Override
@@ -125,12 +178,14 @@ public class TestFormatFactory implements DeserializationFormatFactory, Serializ
 				return false;
 			}
 			DecodingFormatMock that = (DecodingFormatMock) o;
-			return delimiter.equals(that.delimiter) && failOnMissing.equals(that.failOnMissing);
+			return delimiter.equals(that.delimiter)
+					&& failOnMissing.equals(that.failOnMissing)
+					&& Objects.equals(changelogMode, that.changelogMode);
 		}
 
 		@Override
 		public int hashCode() {
-			return Objects.hash(delimiter, failOnMissing);
+			return Objects.hash(delimiter, failOnMissing, changelogMode);
 		}
 	}
 
@@ -145,8 +200,16 @@ public class TestFormatFactory implements DeserializationFormatFactory, Serializ
 
 		public final String delimiter;
 
+		@Nullable
+		public final ChangelogMode changelogMode;
+
 		public EncodingFormatMock(String delimiter) {
+			this(delimiter, null);
+		}
+
+		public EncodingFormatMock(String delimiter, @Nullable ChangelogMode changelogMode) {
 			this.delimiter = delimiter;
+			this.changelogMode = changelogMode;
 		}
 
 		@Override
@@ -158,7 +221,7 @@ public class TestFormatFactory implements DeserializationFormatFactory, Serializ
 
 		@Override
 		public ChangelogMode getChangelogMode() {
-			return null;
+			return this.changelogMode;
 		}
 
 		@Override
@@ -170,12 +233,12 @@ public class TestFormatFactory implements DeserializationFormatFactory, Serializ
 				return false;
 			}
 			EncodingFormatMock that = (EncodingFormatMock) o;
-			return delimiter.equals(that.delimiter);
+			return delimiter.equals(that.delimiter) && Objects.equals(changelogMode, that.changelogMode);
 		}
 
 		@Override
 		public int hashCode() {
-			return Objects.hash(delimiter);
+			return Objects.hash(delimiter, changelogMode);
 		}
 	}
 }
