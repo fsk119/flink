@@ -25,14 +25,18 @@ import org.jline.reader.impl.DefaultParser;
 import java.util.List;
 
 /**
- * Multi-line parser for parsing an arbitrary number of SQL lines until a line ends with ';'.
+ * Multi-line parser for parsing an arbitrary number of SQL lines until a line ends with ';\n'.
  *
  * <p>Quoting and escaping are disabled for now.
  */
 public class SqlMultiLineParser extends DefaultParser {
 
     private static final String EOF_CHARACTER = ";";
+    private static final String BEGIN_STATEMENT = "BEGIN STATEMENT SET;";
+    private static final String END = "END;";
     private static final String NEW_LINE_PROMPT = ""; // results in simple '>' output
+
+    private boolean captureStatement = false;
 
     public SqlMultiLineParser() {
         setEscapeChars(null);
@@ -41,7 +45,7 @@ public class SqlMultiLineParser extends DefaultParser {
 
     @Override
     public ParsedLine parse(String line, int cursor, ParseContext context) {
-        if (!line.trim().endsWith(EOF_CHARACTER) && context != ParseContext.COMPLETE) {
+        if (keepReading(line, context)) {
             throw new EOFError(-1, -1, "New line without EOF character.", NEW_LINE_PROMPT);
         }
         final ArgumentList parsedLine = (ArgumentList) super.parse(line, cursor, context);
@@ -54,6 +58,10 @@ public class SqlMultiLineParser extends DefaultParser {
                 null,
                 parsedLine.rawWordCursor(),
                 parsedLine.rawWordLength());
+    }
+
+    public boolean captureStatement() {
+        return captureStatement;
     }
 
     private class SqlArgumentList extends DefaultParser.ArgumentList {
@@ -86,5 +94,22 @@ public class SqlMultiLineParser extends DefaultParser {
             // e.g. 'INS(ERT INTO)' should not be quoted but 'SELECT * FROM T(axi Rides)' should
             return candidate;
         }
+    }
+
+    private boolean keepReading(String line, ParseContext context) {
+        String trimmedLine = line.trim();
+        if (trimmedLine.toUpperCase().startsWith(BEGIN_STATEMENT)) {
+            captureStatement = true;
+        }
+
+        if (captureStatement) {
+            if (trimmedLine.toUpperCase().endsWith(END)) {
+                captureStatement = false;
+                return false;
+            }
+            return true;
+        }
+
+        return line.trim().endsWith(EOF_CHARACTER) && context == ParseContext.COMPLETE;
     }
 }

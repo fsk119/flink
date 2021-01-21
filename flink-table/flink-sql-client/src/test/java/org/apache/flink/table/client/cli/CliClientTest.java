@@ -42,10 +42,14 @@ import org.apache.flink.util.TestLogger;
 import org.jline.reader.Candidate;
 import org.jline.reader.LineReader;
 import org.jline.reader.LineReaderBuilder;
+import org.jline.reader.MaskingCallback;
 import org.jline.reader.ParsedLine;
 import org.jline.reader.Parser;
+import org.jline.terminal.Size;
 import org.jline.terminal.Terminal;
 import org.jline.terminal.impl.DumbTerminal;
+import org.jline.utils.AttributedStringBuilder;
+import org.jline.utils.AttributedStyle;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
@@ -324,6 +328,45 @@ public class CliClientTest extends TestLogger {
                         .build();
         testExecuteSql(executor, "drop catalog c1;");
         assertThat(executor.getNumExecuteSqlCalls(), is(1));
+    }
+
+    @Test
+    public void testSqlParser() throws IOException {
+        String statement =
+                "begin statement set;\n"
+                        + "insert into emps1 select * from emps(x, y);\n"
+                        + "insert into emps2 select * from emps(x, y);\n"
+                        + "end;\n";
+        int position = 0;
+        final SessionContext context = new SessionContext("test-session", new Environment());
+        final MockExecutor mockExecutor = new MockExecutor();
+        String sessionId = mockExecutor.openSession(context);
+
+        final SqlMultiLineParser parser = new SqlMultiLineParser();
+        final ByteArrayOutputStream outputStream = new ByteArrayOutputStream(1000);
+
+        try (Terminal terminal =
+                new DumbTerminal(new ByteArrayInputStream(statement.getBytes()), outputStream)) {
+            terminal.setSize(new Size(160, 80));
+            final LineReader reader =
+                    LineReaderBuilder.builder().terminal(terminal).parser(parser).build();
+
+            String line =
+                    reader.readLine(
+                            new AttributedStringBuilder()
+                                    .style(
+                                            AttributedStyle.DEFAULT.foreground(
+                                                    AttributedStyle.GREEN))
+                                    .append("Flink SQL")
+                                    .style(AttributedStyle.DEFAULT)
+                                    .append("> ")
+                                    .toAnsi(),
+                            null,
+                            (MaskingCallback) null,
+                            null);
+            System.out.println(line);
+            System.out.println(outputStream.toString());
+        }
     }
 
     // --------------------------------------------------------------------------------------------
