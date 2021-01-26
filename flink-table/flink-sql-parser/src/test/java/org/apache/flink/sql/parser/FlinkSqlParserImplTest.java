@@ -108,6 +108,24 @@ public class FlinkSqlParserImplTest extends SqlParserTest {
     }
 
     @Test
+    public void testExplain() {
+        sql("explain plan for insert into sink select a, b from source")
+                .ok(
+                        "EXPLAIN PLAN FOR INSERT INTO `SINK`\n"
+                                + "(SELECT `A`, `B`\n"
+                                + "FROM `SOURCE`)");
+        //        sql("explain insert into sink select a, b from source").ok("");
+        sql("explain cost SELECT a, b FROM source")
+                .ok("EXPLAIN COST SELECT `A`, `B`\n" + "FROM `SOURCE`");
+        sql("explain format json select a, b from source").ok("");
+        sql("explain changelog SELECT a, b FROM source")
+                .ok("EXPLAIN CHANGELOG SELECT `A`, `B`\n" + "FROM `SOURCE`");
+        sql("explain changelog,cost SELECT a, b FROM source")
+                .ok("EXPLAIN COST CHANGELOG SELECT `A`, `B`\n" + "FROM `SOURCE`");
+        //        sql("explain changelog,changelog SELECT a, b FROM source").ok("");
+    }
+
+    @Test
     public void testCreateDatabase() {
         sql("create database db1").ok("CREATE DATABASE `DB1`");
         sql("create database if not exists db1").ok("CREATE DATABASE IF NOT EXISTS `DB1`");

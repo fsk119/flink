@@ -1431,3 +1431,27 @@ SqlDrop SqlDropExtended(Span s, boolean replace) :
         return drop;
     }
 }
+
+SqlNode SqlExplainDetails() :
+{
+    SqlNode stmt;
+    Set<String> details = new HashSet<String>();
+}
+{
+    <EXPLAIN>
+    [
+        <PLAN> <FOR>
+        |
+        (<COST> | <CHANGELOG> | <FORMAT> <JSON>) { details.add(token.image); }
+        (<COMMA> (<CHANGELOG> | <COST> | <FORMAT> <JSON>) {
+            if (details.contains(token.image)) {
+                throw SqlUtil.newContextException(getPos(), RESOURCE.illegalNonQueryExpression());
+            }
+            details.add(token.image);})*
+    ]
+    stmt = SqlQueryOrDml() {
+        return new SqlExplainDetails(getPos(),
+            stmt,
+            details);
+    }
+}

@@ -72,11 +72,15 @@
     "org.apache.flink.sql.parser.utils.ParserResource"
     "org.apache.flink.sql.parser.validate.FlinkSqlConformance"
     "org.apache.flink.sql.parser.SqlProperty"
+    "org.apache.flink.sql.parser.ddl.SqlExplainDetails"
     "org.apache.calcite.sql.SqlAlienSystemTypeNameSpec"
     "org.apache.calcite.sql.SqlCreate"
     "org.apache.calcite.sql.SqlDrop"
+    "org.apache.calcite.sql.SqlUtil"
     "java.util.List"
     "java.util.ArrayList"
+    "java.util.Set"
+    "java.util.HashSet"
   ]
 
   # List of new keywords. Example: "DATABASES", "TABLES". If the keyword is not a reserved
@@ -107,6 +111,8 @@
     "VIRTUAL"
     "WATERMARK"
     "WATERMARKS"
+    "COST"
+    "CHANGELOG"
   ]
 
   # List of keywords from "keywords" section that are not reserved.
@@ -438,6 +444,8 @@
     "PARTITIONED"
     "PARTITIONS"
     "VIRTUAL"
+    "COST"
+    "CHANGELOG"
   ]
 
   # List of non-reserved keywords to remove;
@@ -450,6 +458,7 @@
   # Example: SqlShowDatabases(), SqlShowTables().
   statementParserMethods: [
     "RichSqlInsert()"
+    "SqlExplainDetails()"
     "SqlShowCatalogs()"
     "SqlShowCurrentCatalogOrDatabase()"
     "SqlDescribeCatalog()"
