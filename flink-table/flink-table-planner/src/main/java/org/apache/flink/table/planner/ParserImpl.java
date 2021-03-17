@@ -61,6 +61,9 @@ public class ParserImpl implements Parser {
         CalciteParser parser = calciteParserSupplier.get();
         FlinkPlannerImpl planner = validatorSupplier.get();
         // parse the sql query
+
+        // add logic about Regex parser but we need to copy the related class into here
+
         SqlNode parsed = parser.parse(statement);
 
         Operation operation =
@@ -86,5 +89,10 @@ public class ParserImpl implements Parser {
     public ResolvedExpression parseSqlExpression(String sqlExpression, TableSchema inputSchema) {
         throw new UnsupportedOperationException(
                 "Computed columns is only supported by the Blink planner.");
+    }
+
+    @Override
+    public String[] getCompletionHints(String statement, int position) {
+        return new String[0];
     }
 }

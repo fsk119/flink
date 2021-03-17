@@ -191,6 +191,12 @@ public class LocalExecutor implements Executor {
                 return context.wrapClassLoader(
                         () -> parser.parseSqlExpression(sqlExpression, inputSchema));
             }
+
+            @Override
+            public String[] getCompletionHints(String statement, int position) {
+                return context.wrapClassLoader(
+                        () -> parser.getCompletionHints(statement, position));
+            }
         };
     }
 

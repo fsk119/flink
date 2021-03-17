@@ -31,15 +31,19 @@ import org.apache.flink.table.planner.calcite.FlinkTypeFactory;
 import org.apache.flink.table.planner.calcite.SqlExprToRexConverter;
 import org.apache.flink.table.planner.expressions.RexNodeExpression;
 import org.apache.flink.table.planner.operations.SqlToOperationConverter;
+import org.apache.flink.table.planner.regex.RegexParser;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.utils.TypeConversions;
 
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlIdentifier;
 import org.apache.calcite.sql.SqlNode;
+import org.apache.calcite.sql.advise.SqlAdvisor;
+import org.apache.calcite.sql.advise.SqlAdvisorValidator;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -70,6 +74,13 @@ public class ParserImpl implements Parser {
     public List<Operation> parse(String statement) {
         CalciteParser parser = calciteParserSupplier.get();
         FlinkPlannerImpl planner = validatorSupplier.get();
+
+        // use regex converter
+        Optional<Operation> command = RegexParser.INSTANCE.convert(statement);
+        if (command.isPresent()) {
+            return Collections.singletonList(command.get());
+        }
+
         // parse the sql query
         SqlNode parsed = parser.parse(statement);
 
@@ -99,6 +110,21 @@ public class ParserImpl implements Parser {
                 TypeConversions.fromLogicalToDataType(logicalType),
                 sqlExpression,
                 sqlExpressionExpanded);
+    }
+
+    public String[] getCompletionHints(String statement, int cursor) {
+        String[] hints = RegexParser.INSTANCE.getCompletionHints(statement, cursor);
+        if (hints.length > 0) {
+            return hints;
+        }
+
+        SqlAdvisorValidator validator = validatorSupplier.get().getSqlAdvisorValidator();
+        SqlAdvisor advisor =
+                new SqlAdvisor(validator, validatorSupplier.get().config().getParserConfig());
+        String[] replaced = new String[1];
+        return advisor.getCompletionHints(statement, cursor, replaced).stream()
+                .map(item -> item.toIdentifier().toString())
+                .toArray(String[]::new);
     }
 
     public CatalogManager getCatalogManager() {

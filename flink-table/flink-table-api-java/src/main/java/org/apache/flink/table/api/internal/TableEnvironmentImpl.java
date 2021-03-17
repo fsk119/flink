@@ -675,7 +675,7 @@ public class TableEnvironmentImpl implements TableEnvironmentInternal {
 
     @Override
     public String[] getCompletionHints(String statement, int position) {
-        return planner.getCompletionHints(statement, position);
+        return planner.getParser().getCompletionHints(statement, position);
     }
 
     @Override
