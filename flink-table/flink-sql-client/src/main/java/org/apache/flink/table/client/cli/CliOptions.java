@@ -33,6 +33,7 @@ public class CliOptions {
     private final String sessionId;
     private final URL environment;
     private final URL defaults;
+    private final URL initSqlFile;
     private final URL sqlFile;
     private final List<URL> jars;
     private final List<URL> libraryDirs;
@@ -45,6 +46,7 @@ public class CliOptions {
             String sessionId,
             URL environment,
             URL defaults,
+            URL initializeSqlFile,
             URL sqlFile,
             List<URL> jars,
             List<URL> libraryDirs,
@@ -54,6 +56,7 @@ public class CliOptions {
         this.isPrintHelp = isPrintHelp;
         this.sessionId = sessionId;
         this.environment = environment;
+        this.initSqlFile = initializeSqlFile;
         this.sqlFile = sqlFile;
         this.defaults = defaults;
         this.jars = jars;
@@ -77,6 +80,10 @@ public class CliOptions {
 
     public URL getDefaults() {
         return defaults;
+    }
+
+    public URL getInitSqlFile() {
+        return initSqlFile;
     }
 
     public URL getSqlFile() {

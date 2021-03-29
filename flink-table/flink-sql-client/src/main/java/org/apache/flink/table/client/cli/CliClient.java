@@ -22,20 +22,12 @@ import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.table.api.TableResult;
 import org.apache.flink.table.client.SqlClient;
 import org.apache.flink.table.client.SqlClientException;
-import org.apache.flink.table.client.config.ResultMode;
-import org.apache.flink.table.client.config.SqlClientOptions;
 import org.apache.flink.table.client.gateway.Executor;
 import org.apache.flink.table.client.gateway.ResultDescriptor;
 import org.apache.flink.table.client.gateway.SqlExecutionException;
 import org.apache.flink.table.operations.CatalogSinkModifyOperation;
 import org.apache.flink.table.operations.Operation;
 import org.apache.flink.table.operations.QueryOperation;
-import org.apache.flink.table.operations.command.ClearOperation;
-import org.apache.flink.table.operations.command.HelpOperation;
-import org.apache.flink.table.operations.command.QuitOperation;
-import org.apache.flink.table.operations.command.ResetOperation;
-import org.apache.flink.table.operations.command.SetOperation;
-import org.apache.flink.table.utils.PrintUtils;
 
 import org.apache.commons.io.input.ReaderInputStream;
 import org.jline.reader.EndOfFileException;
@@ -61,26 +53,13 @@ import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 import static org.apache.flink.table.api.config.TableConfigOptions.TABLE_DML_SYNC;
-import static org.apache.flink.table.api.internal.TableResultImpl.TABLE_RESULT_OK;
-import static org.apache.flink.table.client.cli.CliStrings.MESSAGE_DEPRECATED_KEY;
-import static org.apache.flink.table.client.cli.CliStrings.MESSAGE_EXECUTE_STATEMENT;
 import static org.apache.flink.table.client.cli.CliStrings.MESSAGE_FINISH_STATEMENT;
-import static org.apache.flink.table.client.cli.CliStrings.MESSAGE_REMOVED_KEY;
-import static org.apache.flink.table.client.cli.CliStrings.MESSAGE_RESET_KEY;
-import static org.apache.flink.table.client.cli.CliStrings.MESSAGE_SET_KEY;
 import static org.apache.flink.table.client.cli.CliStrings.MESSAGE_STATEMENT_SUBMITTED;
 import static org.apache.flink.table.client.cli.CliStrings.MESSAGE_WAIT_EXECUTE;
-import static org.apache.flink.table.client.config.ResultMode.TABLEAU;
-import static org.apache.flink.table.client.config.SqlClientOptions.EXECUTION_RESULT_MODE;
-import static org.apache.flink.table.client.config.YamlConfigUtils.getOptionNameWithDeprecatedKey;
-import static org.apache.flink.table.client.config.YamlConfigUtils.getPropertiesInPretty;
-import static org.apache.flink.table.client.config.YamlConfigUtils.isDeprecatedKey;
-import static org.apache.flink.table.client.config.YamlConfigUtils.isRemovedKey;
+import static org.apache.flink.table.client.config.SqlClientOptions.VERBOSE;
 import static org.apache.flink.util.Preconditions.checkState;
 
 /** SQL CLI client. */
@@ -88,7 +67,11 @@ public class CliClient implements AutoCloseable {
 
     private static final Logger LOG = LoggerFactory.getLogger(CliClient.class);
 
+    private final SqlCommandExecutor commandExecutor;
+
     private final Executor executor;
+
+    private final TerminalPrinter printer;
 
     private final String sessionId;
 
@@ -122,13 +105,15 @@ public class CliClient implements AutoCloseable {
             @Nullable MaskingCallback inputTransformer) {
         this.terminal = terminal;
         this.sessionId = sessionId;
+        this.printer = new TerminalPrinter(terminal);
         this.executor = executor;
+        this.commandExecutor = new SqlCommandExecutor(printer, executor, sessionId);
         this.isInteractive = isInteractive;
         this.inputTransformer = inputTransformer;
 
         // make space from previous output and test the writer
-        terminal.writer().println();
-        terminal.writer().flush();
+        printer.printMessage("");
+        printer.flush();
 
         // initialize line lineReader
         lineReader =
@@ -189,21 +174,21 @@ public class CliClient implements AutoCloseable {
     public boolean isPlainTerminal() {
         // check if terminal width can be determined
         // e.g. IntelliJ IDEA terminal supports only a plain terminal
-        return terminal.getWidth() == 0 && terminal.getHeight() == 0;
+        return printer.getTerminal().getWidth() == 0 && printer.getTerminal().getHeight() == 0;
     }
 
     public int getWidth() {
         if (isPlainTerminal()) {
             return PLAIN_TERMINAL_WIDTH;
         }
-        return terminal.getWidth();
+        return printer.getTerminal().getWidth();
     }
 
     public int getHeight() {
         if (isPlainTerminal()) {
             return PLAIN_TERMINAL_HEIGHT;
         }
-        return terminal.getHeight();
+        return printer.getTerminal().getHeight();
     }
 
     public Executor getExecutor() {
@@ -216,14 +201,14 @@ public class CliClient implements AutoCloseable {
 
         // print welcome
         if (isInteractive) {
-            terminal.writer().append(CliStrings.MESSAGE_WELCOME);
+            printer.getTerminal().writer().append(CliStrings.MESSAGE_WELCOME);
         }
 
         // begin reading loop
         while (isRunning) {
             // make some space to previous command
-            terminal.writer().append("\n");
-            terminal.flush();
+            printer.getTerminal().writer().append("\n");
+            printer.flush();
 
             String line;
             try {
@@ -251,10 +236,11 @@ public class CliClient implements AutoCloseable {
             }
 
             try {
-                final Optional<Operation> operation = parseCommand(line);
-                operation.ifPresent(this::callOperation);
+                final Optional<Operation> operation = commandExecutor.parseCommand(line);
+                operation.ifPresent(commandExecutor::callOperation);
             } catch (SqlExecutionException e) {
-                printExecutionException(e);
+                boolean isVerbose = executor.getSessionConfig(sessionId).get(VERBOSE);
+                printer.printExecutionException(e, isVerbose);
                 if (!isInteractive) {
                     // kill the execution
                     isRunning = false;
@@ -266,219 +252,252 @@ public class CliClient implements AutoCloseable {
     /** Closes the CLI instance. */
     public void close() {
         try {
-            terminal.close();
-        } catch (IOException e) {
+            printer.close();
+        } catch (Exception e) {
             throw new SqlClientException("Unable to close terminal.", e);
         }
     }
 
     // --------------------------------------------------------------------------------------------
 
-    private Optional<Operation> parseCommand(String stmt) {
-        // normalize
-        stmt = stmt.trim();
-        // remove ';' at the end
-        if (stmt.endsWith(";")) {
-            stmt = stmt.substring(0, stmt.length() - 1).trim();
-        }
-
-        Operation operation = executor.parseStatement(sessionId, stmt);
-        return Optional.of(operation);
-    }
-
-    private void callOperation(Operation operation) {
-        if (operation instanceof QuitOperation) {
-            // QUIT/EXIT
-            callQuit();
-        } else if (operation instanceof ClearOperation) {
-            // CLEAR
-            callClear();
-        } else if (operation instanceof HelpOperation) {
-            // HELP
-            callHelp();
-        } else if (operation instanceof SetOperation) {
-            // SET
-            callSet((SetOperation) operation);
-        } else if (operation instanceof ResetOperation) {
-            // RESET
-            callReset((ResetOperation) operation);
-        } else if (operation instanceof CatalogSinkModifyOperation) {
-            // INSERT INTO/OVERWRITE
-            callInsert((CatalogSinkModifyOperation) operation);
-        } else if (operation instanceof QueryOperation) {
-            // SELECT
-            ResultMode mode = executor.getSessionConfig(sessionId).get(EXECUTION_RESULT_MODE);
-            if (!isInteractive && !mode.equals(TABLEAU)) {
-                throw new IllegalArgumentException(
-                        String.format(
-                                "In non-interactive mode, it only supports to use %s as value of %s when execute query. Please add 'SET %s=%s;' in the sql file.",
-                                TABLEAU,
-                                EXECUTION_RESULT_MODE.key(),
-                                EXECUTION_RESULT_MODE.key(),
-                                TABLEAU));
-            }
-            callSelect((QueryOperation) operation);
-        } else {
-            // fallback to default implementation
-            executeOperation(operation);
-        }
-    }
-
-    private void callQuit() {
-        printInfo(CliStrings.MESSAGE_QUIT);
-        isRunning = false;
-    }
-
-    private void callClear() {
-        clearTerminal();
-    }
-
-    private void callReset(ResetOperation resetOperation) {
-        // reset all session properties
-        if (!resetOperation.getKey().isPresent()) {
-            executor.resetSessionProperties(sessionId);
-            printInfo(CliStrings.MESSAGE_RESET);
-        }
-        // reset a session property
-        else {
-            String key = resetOperation.getKey().get();
-            executor.resetSessionProperty(sessionId, key);
-            printSetResetConfigKeyMessage(key, MESSAGE_RESET_KEY);
-        }
-    }
-
-    private void callSet(SetOperation setOperation) {
-        // set a property
-        if (setOperation.getKey().isPresent() && setOperation.getValue().isPresent()) {
-            String key = setOperation.getKey().get().trim();
-            String value = setOperation.getValue().get().trim();
-            executor.setSessionProperty(sessionId, key, value);
-            printSetResetConfigKeyMessage(key, MESSAGE_SET_KEY);
-        }
-        // show all properties
-        else {
-            final Map<String, String> properties = executor.getSessionConfigMap(sessionId);
-            if (properties.isEmpty()) {
-                terminal.writer()
-                        .println(CliStrings.messageInfo(CliStrings.MESSAGE_EMPTY).toAnsi());
-            } else {
-                List<String> prettyEntries = getPropertiesInPretty(properties);
-                prettyEntries.forEach(entry -> terminal.writer().println(entry));
-            }
-            terminal.flush();
-        }
-    }
-
-    private void callHelp() {
-        terminal.writer().println(CliStrings.MESSAGE_HELP);
-        terminal.flush();
-    }
-
-    private void callSelect(QueryOperation operation) {
-        final ResultDescriptor resultDesc = executor.executeQuery(sessionId, operation);
-
-        if (resultDesc.isTableauMode()) {
-            try (CliTableauResultView tableauResultView =
-                    new CliTableauResultView(terminal, executor, sessionId, resultDesc)) {
-                tableauResultView.displayResults();
-            }
-        } else {
-            final CliResultView<?> view;
-            if (resultDesc.isMaterialized()) {
-                view = new CliTableResultView(this, resultDesc);
-            } else {
-                view = new CliChangelogResultView(this, resultDesc);
-            }
-
-            // enter view
-            view.open();
-
-            // view left
-            printInfo(CliStrings.MESSAGE_RESULT_QUIT);
-        }
-    }
-
-    private void callInsert(CatalogSinkModifyOperation operation) {
-        printInfo(CliStrings.MESSAGE_SUBMITTING_STATEMENT);
-
-        boolean sync = executor.getSessionConfig(sessionId).get(TABLE_DML_SYNC);
-        if (sync) {
-            printInfo(MESSAGE_WAIT_EXECUTE);
-        }
-        TableResult tableResult = executor.executeOperation(sessionId, operation);
-        checkState(tableResult.getJobClient().isPresent());
-        if (sync) {
-            terminal.writer().println(CliStrings.messageInfo(MESSAGE_FINISH_STATEMENT).toAnsi());
-        } else {
-            terminal.writer().println(CliStrings.messageInfo(MESSAGE_STATEMENT_SUBMITTED).toAnsi());
-            terminal.writer()
-                    .println(
-                            String.format(
-                                    "Job ID: %s\n",
-                                    tableResult.getJobClient().get().getJobID().toString()));
-        }
-        terminal.flush();
-    }
-
-    private void executeOperation(Operation operation) {
-        TableResult result = executor.executeOperation(sessionId, operation);
-        if (TABLE_RESULT_OK == result) {
-            // print more meaningful message than tableau OK result
-            printInfo(MESSAGE_EXECUTE_STATEMENT);
-        } else {
-            // print tableau if result has content
-            PrintUtils.printAsTableauForm(
-                    result.getResolvedSchema(),
-                    result.collect(),
-                    terminal.writer(),
-                    Integer.MAX_VALUE,
-                    "",
-                    false,
-                    false);
-            terminal.flush();
-        }
-    }
+    //    private Optional<Operation> parseCommand(String stmt) {
+    //        // normalize
+    //        stmt = stmt.trim();
+    //        // remove ';' at the end
+    //        if (stmt.endsWith(";")) {
+    //            stmt = stmt.substring(0, stmt.length() - 1).trim();
+    //        }
+    //
+    //        Operation operation = executor.parseStatement(sessionId, stmt);
+    //        return Optional.of(operation);
+    //    }
+    //
+    //    private void callOperation(Operation operation) {
+    //        if (operation instanceof QuitOperation) {
+    //            // QUIT/EXIT
+    //            callQuit();
+    //        } else if (operation instanceof ClearOperation) {
+    //            // CLEAR
+    //            callClear();
+    //        } else if (operation instanceof HelpOperation) {
+    //            // HELP
+    //            callHelp();
+    //        } else if (operation instanceof SetOperation) {
+    //            // SET
+    //            callSet((SetOperation) operation);
+    //        } else if (operation instanceof ResetOperation) {
+    //            // RESET
+    //            callReset((ResetOperation) operation);
+    //        } else if (operation instanceof CatalogSinkModifyOperation) {
+    //            // INSERT INTO/OVERWRITE
+    //            callInsert((CatalogSinkModifyOperation) operation);
+    //        } else if (operation instanceof QueryOperation) {
+    //            // SELECT
+    //            ResultMode mode = executor.getSessionConfig(sessionId).get(EXECUTION_RESULT_MODE);
+    //            if (!isInteractive && !mode.equals(TABLEAU)) {
+    //                throw new IllegalArgumentException(
+    //                        String.format(
+    //                                "In non-interactive mode, it only supports to use %s as value
+    // of %s when execute query. Please add 'SET %s=%s;' in the sql file.",
+    //                                TABLEAU,
+    //                                EXECUTION_RESULT_MODE.key(),
+    //                                EXECUTION_RESULT_MODE.key(),
+    //                                TABLEAU));
+    //            }
+    //            callSelect((QueryOperation) operation);
+    //        } else {
+    //            // fallback to default implementation
+    //            executeOperation(operation);
+    //        }
+    //    }
+    //
+    //    private void callQuit() {
+    //        printer.printInfo(CliStrings.MESSAGE_QUIT);
+    //        isRunning = false;
+    //    }
+    //
+    //    private void callClear() {
+    //        clearTerminal();
+    //    }
+    //
+    //    private void callReset(ResetOperation resetOperation) {
+    //        // reset all session properties
+    //        if (!resetOperation.getKey().isPresent()) {
+    //            executor.resetSessionProperties(sessionId);
+    //            printer.printInfo(CliStrings.MESSAGE_RESET);
+    //        }
+    //        // reset a session property
+    //        else {
+    //            String key = resetOperation.getKey().get();
+    //            executor.resetSessionProperty(sessionId, key);
+    //            printSetResetConfigKeyMessage(key, MESSAGE_RESET_KEY);
+    //        }
+    //    }
+    //
+    //    private void callSet(SetOperation setOperation) {
+    //        // set a property
+    //        if (setOperation.getKey().isPresent() && setOperation.getValue().isPresent()) {
+    //            String key = setOperation.getKey().get().trim();
+    //            String value = setOperation.getValue().get().trim();
+    //            executor.setSessionProperty(sessionId, key, value);
+    //            printSetResetConfigKeyMessage(key, MESSAGE_SET_KEY);
+    //        }
+    //        // show all properties
+    //        else {
+    //            final Map<String, String> properties = executor.getSessionConfigMap(sessionId);
+    //            if (properties.isEmpty()) {
+    //                terminal.writer()
+    //                        .println(CliStrings.messageInfo(CliStrings.MESSAGE_EMPTY).toAnsi());
+    //            } else {
+    //                List<String> prettyEntries = getPropertiesInPretty(properties);
+    //                prettyEntries.forEach(entry -> terminal.writer().println(entry));
+    //            }
+    //            terminal.flush();
+    //        }
+    //    }
+    //
+    //    private void callHelp() {
+    //        terminal.writer().println(CliStrings.MESSAGE_HELP);
+    //        terminal.flush();
+    //    }
+    //
+    //    private void callSelect(QueryOperation operation) {
+    //        final ResultDescriptor resultDesc = executor.executeQuery(sessionId, operation);
+    //
+    //        if (resultDesc.isTableauMode()) {
+    //            try (CliTableauResultView tableauResultView =
+    //                    new CliTableauResultView(terminal, executor, sessionId, resultDesc)) {
+    //                tableauResultView.displayResults();
+    //            }
+    //        } else {
+    //            final CliResultView<?> view;
+    //            if (resultDesc.isMaterialized()) {
+    //                view = new CliTableResultView(this, resultDesc);
+    //            } else {
+    //                view = new CliChangelogResultView(this, resultDesc);
+    //            }
+    //
+    //            // enter view
+    //            view.open();
+    //
+    //            // view left
+    //            printInfo(CliStrings.MESSAGE_RESULT_QUIT);
+    //        }
+    //    }
+    //
+    //    private void callInsert(CatalogSinkModifyOperation operation) {
+    //        printInfo(CliStrings.MESSAGE_SUBMITTING_STATEMENT);
+    //
+    //        boolean sync = executor.getSessionConfig(sessionId).get(TABLE_DML_SYNC);
+    //        if (sync) {
+    //            printInfo(MESSAGE_WAIT_EXECUTE);
+    //        }
+    //        TableResult tableResult = executor.executeOperation(sessionId, operation);
+    //        checkState(tableResult.getJobClient().isPresent());
+    //        if (sync) {
+    //
+    // terminal.writer().println(CliStrings.messageInfo(MESSAGE_FINISH_STATEMENT).toAnsi());
+    //        } else {
+    //
+    // terminal.writer().println(CliStrings.messageInfo(MESSAGE_STATEMENT_SUBMITTED).toAnsi());
+    //            terminal.writer()
+    //                    .println(
+    //                            String.format(
+    //                                    "Job ID: %s\n",
+    //                                    tableResult.getJobClient().get().getJobID().toString()));
+    //        }
+    //        terminal.flush();
+    //    }
+    //
+    //    private void executeOperation(Operation operation) {
+    //        TableResult result = executor.executeOperation(sessionId, operation);
+    //        if (TABLE_RESULT_OK == result) {
+    //            // print more meaningful message than tableau OK result
+    //            printInfo(MESSAGE_EXECUTE_STATEMENT);
+    //        } else {
+    //            // print tableau if result has content
+    //            PrintUtils.printAsTableauForm(
+    //                    result.getResolvedSchema(),
+    //                    result.collect(),
+    //                    terminal.writer(),
+    //                    Integer.MAX_VALUE,
+    //                    "",
+    //                    false,
+    //                    false);
+    //            terminal.flush();
+    //        }
+    //    }
 
     // --------------------------------------------------------------------------------------------
 
-    private void printExecutionException(Throwable t) {
-        final String errorMessage = CliStrings.MESSAGE_SQL_EXECUTION_ERROR;
-        LOG.warn(errorMessage, t);
-        boolean isVerbose = executor.getSessionConfig(sessionId).get(SqlClientOptions.VERBOSE);
-        terminal.writer().println(CliStrings.messageError(errorMessage, t, isVerbose).toAnsi());
-        terminal.flush();
-    }
+    private class SqlCommandExecutor extends AbstractSqlCommandExecutor {
 
-    private void printInfo(String message) {
-        terminal.writer().println(CliStrings.messageInfo(message).toAnsi());
-        terminal.flush();
-    }
-
-    private void printWarning(String message) {
-        terminal.writer().println(CliStrings.messageWarning(message).toAnsi());
-        terminal.flush();
-    }
-
-    private void printSetResetConfigKeyMessage(String key, String message) {
-        boolean isRemovedKey = isRemovedKey(key);
-        boolean isDeprecatedKey = isDeprecatedKey(key);
-
-        // print warning information if the given key is removed or deprecated
-        if (isRemovedKey || isDeprecatedKey) {
-            String warningMsg =
-                    isRemovedKey
-                            ? MESSAGE_REMOVED_KEY
-                            : String.format(
-                                    MESSAGE_DEPRECATED_KEY,
-                                    key,
-                                    getOptionNameWithDeprecatedKey(key));
-            printWarning(warningMsg);
+        public SqlCommandExecutor(SqlCommandPrinter printer, Executor executor, String sessionId) {
+            super(printer, executor, sessionId);
         }
 
-        // when the key is not removed, need to print normal message
-        if (!isRemovedKey) {
-            terminal.writer().println(CliStrings.messageInfo(message).toAnsi());
+        @Override
+        protected void callQuit() {
+            printer.printInfo(CliStrings.MESSAGE_QUIT);
+            isRunning = false;
+        }
+
+        @Override
+        protected void callClear() {
+            clearTerminal();
+        }
+
+        @Override
+        protected void callHelp() {
+            printer.printMessage(CliStrings.MESSAGE_HELP);
             terminal.flush();
+        }
+
+        @Override
+        protected void callInsert(CatalogSinkModifyOperation operation) {
+            printer.printInfo(CliStrings.MESSAGE_SUBMITTING_STATEMENT);
+
+            boolean sync = executor.getSessionConfig(sessionId).get(TABLE_DML_SYNC);
+            if (sync) {
+                printer.printInfo(MESSAGE_WAIT_EXECUTE);
+            }
+            TableResult tableResult = executor.executeOperation(sessionId, operation);
+            checkState(tableResult.getJobClient().isPresent());
+            if (sync) {
+                printer.printInfo(MESSAGE_FINISH_STATEMENT);
+            } else {
+                printer.printInfo(MESSAGE_STATEMENT_SUBMITTED);
+                printer.printMessage(
+                        String.format(
+                                "Job ID: %s\n",
+                                tableResult.getJobClient().get().getJobID().toString()));
+            }
+            printer.flush();
+        }
+
+        @Override
+        protected void callSelect(QueryOperation queryOperation) {
+            final ResultDescriptor resultDesc = executor.executeQuery(sessionId, queryOperation);
+
+            if (resultDesc.isTableauMode()) {
+                try (CliTableauResultView tableauResultView =
+                        new CliTableauResultView(terminal, executor, sessionId, resultDesc)) {
+                    tableauResultView.displayResults();
+                }
+            } else {
+                final CliResultView<?> view;
+                if (resultDesc.isMaterialized()) {
+                    view = new CliTableResultView(CliClient.this, resultDesc);
+                } else {
+                    view = new CliChangelogResultView(CliClient.this, resultDesc);
+                }
+
+                // enter view
+                view.open();
+
+                // view left
+                printer.printInfo(CliStrings.MESSAGE_RESULT_QUIT);
+            }
         }
     }
 
