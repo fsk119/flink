@@ -133,7 +133,7 @@ public class TableSourceJsonPlanTest extends TableTestBase {
                         + "  'bounded' = 'false',"
                         + "  'partition-list' = 'p:A')";
         tEnv.executeSql(srcTableDdl);
-        util.verifyJsonPlan("insert into MySink select * from PartitionTable where p = 'A'");
+        util.verifyExecPlan("select * from PartitionTable where p = 'A'");
     }
 
     @Test

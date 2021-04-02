@@ -175,7 +175,6 @@ object FlinkStreamRuleSets {
     */
   val FILTER_TABLESCAN_PUSHDOWN_RULES: RuleSet = RuleSets.ofList(
     // push a filter down into the table scan
-    PushFilterIntoTableSourceScanRule.INSTANCE,
     PushFilterIntoLegacyTableSourceScanRule.INSTANCE,
     // push partition into the table scan
     PushPartitionIntoLegacyTableSourceScanRule.INSTANCE,
@@ -242,7 +241,6 @@ object FlinkStreamRuleSets {
     // scan optimization
     PushProjectIntoTableSourceScanRule.INSTANCE,
     PushProjectIntoLegacyTableSourceScanRule.INSTANCE,
-    PushFilterIntoTableSourceScanRule.INSTANCE,
     PushFilterIntoLegacyTableSourceScanRule.INSTANCE,
     PushLimitIntoTableSourceScanRule.INSTANCE,
 
@@ -353,6 +351,8 @@ object FlinkStreamRuleSets {
     // watermark push down
     PushWatermarkIntoTableSourceScanAcrossCalcRule.INSTANCE,
     PushWatermarkIntoTableSourceScanRule.INSTANCE,
+    // filter push down
+    PushFilterInCalcIntoTableSourceScanRule.INSTANCE,
     // transform over window to topn node
     FlinkLogicalRankRule.INSTANCE,
     // transpose calc past rank to reduce rank input fields
