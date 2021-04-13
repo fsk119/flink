@@ -73,6 +73,7 @@ import java.util.Map;
 
 import static org.apache.flink.table.api.config.TableConfigOptions.TABLE_DML_SYNC;
 import static org.apache.flink.table.client.cli.CliStrings.MESSAGE_SQL_EXECUTION_ERROR;
+import static org.apache.flink.table.client.gateway.SqlExecutionException.ExceptionType.SQL_PARSE_ERROR;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -483,7 +484,7 @@ public class CliClientTest extends TestLogger {
             try {
                 return helper.getSqlParser().parse(statement).get(0);
             } catch (Exception ex) {
-                throw new SqlExecutionException("Parse error: " + statement, ex);
+                throw new SqlExecutionException(SQL_PARSE_ERROR, "Parse error: " + statement, ex);
             }
         }
 

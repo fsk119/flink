@@ -55,6 +55,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import static org.apache.flink.configuration.ExecutionOptions.RUNTIME_MODE;
 import static org.apache.flink.table.client.cli.CliStrings.MESSAGE_SQL_EXECUTION_ERROR;
 import static org.apache.flink.table.client.config.SqlClientOptions.EXECUTION_RESULT_MODE;
+import static org.apache.flink.table.client.gateway.SqlExecutionException.ExceptionType.SQL_PARSE_ERROR;
 import static org.apache.flink.util.Preconditions.checkArgument;
 
 /**
@@ -175,7 +176,8 @@ public class LocalExecutor implements Executor {
         try {
             operations = context.wrapClassLoader(() -> parser.parse(statement));
         } catch (Exception e) {
-            throw new SqlExecutionException("Failed to parse statement: " + statement, e);
+            throw new SqlExecutionException(
+                    SQL_PARSE_ERROR, "Failed to parse statement: " + statement, e);
         }
         if (operations.isEmpty()) {
             throw new SqlExecutionException("Failed to parse statement: " + statement);

@@ -93,6 +93,7 @@ import static org.apache.flink.table.client.config.YamlConfigUtils.getOptionName
 import static org.apache.flink.table.client.config.YamlConfigUtils.getPropertiesInPretty;
 import static org.apache.flink.table.client.config.YamlConfigUtils.isDeprecatedKey;
 import static org.apache.flink.table.client.config.YamlConfigUtils.isRemovedKey;
+import static org.apache.flink.table.client.gateway.SqlExecutionException.ExceptionType.SQL_PARSE_ERROR;
 import static org.apache.flink.util.Preconditions.checkState;
 
 /** SQL CLI client. */
@@ -576,11 +577,16 @@ public class CliClient implements AutoCloseable {
 
     // --------------------------------------------------------------------------------------------
 
-    private void printExecutionException(Throwable t) {
-        final String errorMessage = CliStrings.MESSAGE_SQL_EXECUTION_ERROR;
-        LOG.warn(errorMessage, t);
+    private void printExecutionException(SqlExecutionException e) {
+        final String errorMessage;
+        if (SQL_PARSE_ERROR.equals(e.getType())) {
+            errorMessage = CliStrings.MESSAGE_SQL_PARSE_ERROR;
+        } else {
+            errorMessage = CliStrings.MESSAGE_SQL_EXECUTION_ERROR;
+        }
+        LOG.warn(errorMessage, e);
         boolean isVerbose = executor.getSessionConfig(sessionId).get(SqlClientOptions.VERBOSE);
-        terminal.writer().println(CliStrings.messageError(errorMessage, t, isVerbose).toAnsi());
+        terminal.writer().println(CliStrings.messageError(errorMessage, e, isVerbose).toAnsi());
         terminal.flush();
     }
 

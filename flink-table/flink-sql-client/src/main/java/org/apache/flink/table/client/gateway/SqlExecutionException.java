@@ -23,11 +23,33 @@ public class SqlExecutionException extends RuntimeException {
 
     private static final long serialVersionUID = 1L;
 
+    private ExceptionType type = ExceptionType.SQL_EXECUTE_ERROR;
+
     public SqlExecutionException(String message) {
         super(message);
     }
 
+    public SqlExecutionException(ExceptionType type, String message) {
+        super(message);
+        this.type = type;
+    }
+
     public SqlExecutionException(String message, Throwable e) {
         super(message, e);
+    }
+
+    public SqlExecutionException(ExceptionType type, String message, Throwable e) {
+        super(message, e);
+        this.type = type;
+    }
+
+    public ExceptionType getType() {
+        return type;
+    }
+
+    /** Exception type is used to indicate the specific type of error. */
+    public enum ExceptionType {
+        SQL_PARSE_ERROR,
+        SQL_EXECUTE_ERROR
     }
 }
