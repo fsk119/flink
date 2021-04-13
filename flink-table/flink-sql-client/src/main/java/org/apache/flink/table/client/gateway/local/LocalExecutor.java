@@ -180,7 +180,8 @@ public class LocalExecutor implements Executor {
                     SQL_PARSE_ERROR, "Failed to parse statement: " + statement, e);
         }
         if (operations.isEmpty()) {
-            throw new SqlExecutionException("Failed to parse statement: " + statement);
+            throw new SqlExecutionException(
+                    SQL_PARSE_ERROR, "Failed to parse statement: " + statement);
         }
         return operations.get(0);
     }
