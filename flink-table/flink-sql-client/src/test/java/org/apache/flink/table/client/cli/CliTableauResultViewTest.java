@@ -39,6 +39,7 @@ import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -160,12 +161,9 @@ public class CliTableauResultViewTest {
 
         TestingExecutor mockExecutor =
                 new TestingExecutorBuilder()
-                        .setResultChangesSupplier(
-                                () -> TypedResult.payload(data.subList(0, data.size() / 2)),
-                                () ->
-                                        TypedResult.payload(
-                                                data.subList(data.size() / 2, data.size())),
-                                TypedResult::endOfStream)
+                        .setSnapshotResultSupplier(
+                                () -> TypedResult.payload(1), TypedResult::endOfStream)
+                        .setResultPageSupplier(() -> data)
                         .build();
 
         CliTableauResultView view =
@@ -198,7 +196,7 @@ public class CliTableauResultViewTest {
                         + System.lineSeparator()
                         + "+---------+-------------+----------------------+--------------------------------+----------------+----------------------------+"
                         + System.lineSeparator()
-                        + "Received a total of 8 rows"
+                        + "8 rows in set"
                         + System.lineSeparator(),
                 terminalOutput.toString());
         assertThat(mockExecutor.getNumCancelCalls(), is(0));
@@ -209,11 +207,7 @@ public class CliTableauResultViewTest {
         ResultDescriptor resultDescriptor = new ResultDescriptor("", schema, true, true, false);
 
         TestingExecutor mockExecutor =
-                new TestingExecutorBuilder()
-                        .setResultChangesSupplier(
-                                () -> TypedResult.payload(data.subList(0, data.size() / 2)),
-                                TypedResult::empty)
-                        .build();
+                new TestingExecutorBuilder().setSnapshotResultSupplier(TypedResult::empty).build();
 
         CliTableauResultView view =
                 new CliTableauResultView(terminal, mockExecutor, "session", resultDescriptor);
@@ -224,7 +218,7 @@ public class CliTableauResultViewTest {
 
         // wait until we trying to get batch result
         CommonTestUtils.waitUntilCondition(
-                () -> mockExecutor.getNumRetrieveResultChancesCalls() > 1,
+                () -> mockExecutor.getNumSnapshotResultCalls() > 0,
                 Deadline.now().plus(Duration.ofSeconds(5)),
                 50L);
 
@@ -233,22 +227,7 @@ public class CliTableauResultViewTest {
         furture.get(5, TimeUnit.SECONDS);
 
         Assert.assertEquals(
-                "+---------+-------------+----------------------+--------------------------------+----------------+----------------------------+"
-                        + System.lineSeparator()
-                        + "| boolean |         int |               bigint |                        varchar | decimal(10, 5) |                  timestamp |"
-                        + System.lineSeparator()
-                        + "+---------+-------------+----------------------+--------------------------------+----------------+----------------------------+"
-                        + System.lineSeparator()
-                        + "|  (NULL) |           1 |                    2 |                            abc |           1.23 |      2020-03-01 18:39:14.0 |"
-                        + System.lineSeparator()
-                        + "|   false |      (NULL) |                    0 |                                |              1 |      2020-03-01 18:39:14.1 |"
-                        + System.lineSeparator()
-                        + "|    true |  2147483647 |               (NULL) |                        abcdefg |     1234567890 |     2020-03-01 18:39:14.12 |"
-                        + System.lineSeparator()
-                        + "|   false | -2147483648 |  9223372036854775807 |                         (NULL) |    12345.06789 |    2020-03-01 18:39:14.123 |"
-                        + System.lineSeparator()
-                        + "Query terminated, received a total of 4 rows"
-                        + System.lineSeparator(),
+                "Query terminated, received a total of 0 row" + System.lineSeparator(),
                 terminalOutput.toString());
 
         // didn't have a chance to read page
@@ -264,11 +243,9 @@ public class CliTableauResultViewTest {
         ResultDescriptor resultDescriptor = new ResultDescriptor("", schema, true, true, false);
         TestingExecutor mockExecutor =
                 new TestingExecutorBuilder()
-                        .setResultChangesSupplier(TypedResult::endOfStream)
-                        .setResultPageSupplier(
-                                () -> {
-                                    throw new SqlExecutionException("query failed");
-                                })
+                        .setSnapshotResultSupplier(
+                                () -> TypedResult.payload(1), TypedResult::endOfStream)
+                        .setResultPageSupplier(Collections::emptyList)
                         .build();
 
         CliTableauResultView view =
@@ -277,16 +254,7 @@ public class CliTableauResultViewTest {
         view.displayResults();
         view.close();
 
-        Assert.assertEquals(
-                "+---------+-------------+----------------------+--------------------------------+----------------+----------------------------+"
-                        + System.lineSeparator()
-                        + "| boolean |         int |               bigint |                        varchar | decimal(10, 5) |                  timestamp |"
-                        + System.lineSeparator()
-                        + "+---------+-------------+----------------------+--------------------------------+----------------+----------------------------+"
-                        + System.lineSeparator()
-                        + "Received a total of 0 row"
-                        + System.lineSeparator(),
-                terminalOutput.toString());
+        Assert.assertEquals("Empty set" + System.lineSeparator(), terminalOutput.toString());
         assertThat(mockExecutor.getNumCancelCalls(), is(0));
     }
 
@@ -296,11 +264,12 @@ public class CliTableauResultViewTest {
 
         TestingExecutor mockExecutor =
                 new TestingExecutorBuilder()
-                        .setResultChangesSupplier(
+                        .setSnapshotResultSupplier(
+                                () -> TypedResult.payload(1), TypedResult::endOfStream)
+                        .setResultPageSupplier(
                                 () -> {
                                     throw new SqlExecutionException("query failed");
-                                },
-                                TypedResult::endOfStream)
+                                })
                         .build();
 
         CliTableauResultView view =

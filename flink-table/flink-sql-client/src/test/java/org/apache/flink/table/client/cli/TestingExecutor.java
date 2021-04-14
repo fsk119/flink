@@ -44,6 +44,10 @@ class TestingExecutor implements Executor {
     private final List<SupplierWithException<TypedResult<List<Row>>, SqlExecutionException>>
             resultChanges;
 
+    private int numSnapshotResultCalls = 0;
+    private final List<SupplierWithException<TypedResult<Integer>, SqlExecutionException>>
+            snapshotResults;
+
     private int numRetrieveResultPageCalls = 0;
     private final List<SupplierWithException<List<Row>, SqlExecutionException>> resultPages;
 
@@ -52,8 +56,11 @@ class TestingExecutor implements Executor {
     TestingExecutor(
             List<SupplierWithException<TypedResult<List<Row>>, SqlExecutionException>>
                     resultChanges,
+            List<SupplierWithException<TypedResult<Integer>, SqlExecutionException>>
+                    snapshotResults,
             List<SupplierWithException<List<Row>, SqlExecutionException>> resultPages) {
         this.resultChanges = resultChanges;
+        this.snapshotResults = snapshotResults;
         this.resultPages = resultPages;
         helper = new SqlParserHelper();
         helper.registerTables();
@@ -82,7 +89,9 @@ class TestingExecutor implements Executor {
     @Override
     public TypedResult<Integer> snapshotResult(String sessionId, String resultId, int pageSize)
             throws SqlExecutionException {
-        throw new UnsupportedOperationException("Not implemented.");
+        return snapshotResults
+                .get(Math.min(numSnapshotResultCalls++, snapshotResults.size() - 1))
+                .get();
     }
 
     @Override
@@ -161,5 +170,9 @@ class TestingExecutor implements Executor {
 
     public int getNumRetrieveResultPageCalls() {
         return numRetrieveResultPageCalls;
+    }
+
+    public int getNumSnapshotResultCalls() {
+        return numSnapshotResultCalls;
     }
 }

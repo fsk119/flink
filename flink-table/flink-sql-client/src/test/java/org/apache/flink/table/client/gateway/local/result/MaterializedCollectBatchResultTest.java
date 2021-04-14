@@ -46,32 +46,27 @@ public class MaterializedCollectBatchResultTest {
 
         try (TestMaterializedCollectBatchResult result =
                 new TestMaterializedCollectBatchResult(
-                        new TestTableResult(ResultKind.SUCCESS_WITH_CONTENT, schema),
-                        Integer.MAX_VALUE)) {
+                        new TestTableResult(ResultKind.SUCCESS_WITH_CONTENT, schema), 4)) {
 
             result.isRetrieving = true;
 
             result.processRecord(Row.of("A", 1));
             result.processRecord(Row.of("B", 1));
-            result.processRecord(Row.of("A", 1));
+            result.processRecord(Row.of("A", 2));
             result.processRecord(Row.of("C", 2));
+
+            // trigger clean up
+            result.processRecord(Row.of("D", 5));
+
+            // finish retrieving
+            result.isRetrieving = false;
 
             assertEquals(TypedResult.payload(4), result.snapshot(1));
 
-            assertEquals(Collections.singletonList(Row.of("A", 1)), result.retrievePage(1));
-            assertEquals(Collections.singletonList(Row.of("B", 1)), result.retrievePage(2));
-            assertEquals(Collections.singletonList(Row.of("A", 1)), result.retrievePage(3));
-            assertEquals(Collections.singletonList(Row.of("C", 2)), result.retrievePage(4));
-
-            result.processRecord(Row.of("A", 1));
-
-            assertEquals(TypedResult.payload(5), result.snapshot(1));
-
-            assertEquals(Collections.singletonList(Row.of("A", 1)), result.retrievePage(1));
-            assertEquals(Collections.singletonList(Row.of("B", 1)), result.retrievePage(2));
-            assertEquals(Collections.singletonList(Row.of("A", 1)), result.retrievePage(3));
-            assertEquals(Collections.singletonList(Row.of("C", 2)), result.retrievePage(4));
-            assertEquals(Collections.singletonList(Row.of("A", 1)), result.retrievePage(5));
+            assertEquals(Collections.singletonList(Row.of("B", 1)), result.retrievePage(1));
+            assertEquals(Collections.singletonList(Row.of("A", 2)), result.retrievePage(2));
+            assertEquals(Collections.singletonList(Row.of("C", 2)), result.retrievePage(3));
+            assertEquals(Collections.singletonList(Row.of("D", 5)), result.retrievePage(4));
         }
     }
 
@@ -93,6 +88,9 @@ public class MaterializedCollectBatchResultTest {
             result.processRecord(Row.of("A", 1));
             result.processRecord(Row.of("B", 1));
             result.processRecord(Row.of("A", 1));
+
+            // finish retrieving
+            result.isRetrieving = false;
 
             assertEquals(
                     Arrays.asList(

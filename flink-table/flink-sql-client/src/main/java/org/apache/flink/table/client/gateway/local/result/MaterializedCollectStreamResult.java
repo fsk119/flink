@@ -20,6 +20,8 @@ package org.apache.flink.table.client.gateway.local.result;
 
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.table.api.TableResult;
+import org.apache.flink.table.client.gateway.SqlExecutionException;
+import org.apache.flink.table.client.gateway.TypedResult;
 import org.apache.flink.types.Row;
 import org.apache.flink.types.RowKind;
 
@@ -54,6 +56,36 @@ public class MaterializedCollectStreamResult extends MaterializedCollectResultBa
     }
 
     // --------------------------------------------------------------------------------------------
+
+    @Override
+    public TypedResult<Integer> snapshot(int pageSize) {
+        if (pageSize < 1) {
+            throw new SqlExecutionException("Page size must be greater than 0.");
+        }
+
+        synchronized (resultLock) {
+            // retrieval thread is dead and there are no results anymore
+            // or program failed
+            if ((!isRetrieving() && isLastSnapshot) || executionException.get() != null) {
+                return handleMissingResult();
+            }
+            // this snapshot is the last result that can be delivered
+            else if (!isRetrieving()) {
+                isLastSnapshot = true;
+            }
+
+            this.pageSize = pageSize;
+            snapshot.clear();
+            for (int i = validRowPosition; i < materializedTable.size(); i++) {
+                snapshot.add(materializedTable.get(i));
+            }
+
+            // at least one page
+            pageCount = Math.max(1, (int) Math.ceil(((double) snapshot.size() / pageSize)));
+
+            return TypedResult.payload(pageCount);
+        }
+    }
 
     @Override
     protected void processRecord(Row row) {

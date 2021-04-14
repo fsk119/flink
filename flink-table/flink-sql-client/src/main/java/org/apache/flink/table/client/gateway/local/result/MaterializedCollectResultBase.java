@@ -20,7 +20,6 @@ package org.apache.flink.table.client.gateway.local.result;
 
 import org.apache.flink.table.api.TableResult;
 import org.apache.flink.table.client.gateway.SqlExecutionException;
-import org.apache.flink.table.client.gateway.TypedResult;
 import org.apache.flink.types.Row;
 
 import java.util.ArrayList;
@@ -61,16 +60,16 @@ public abstract class MaterializedCollectResultBase extends CollectResultBase
     protected int validRowPosition;
 
     /** Current snapshot of the materialized table. */
-    private final List<Row> snapshot;
+    protected final List<Row> snapshot;
 
     /** Page count of the snapshot (always >= 1). */
-    private int pageCount;
+    protected int pageCount;
 
     /** Page size of the snapshot (always >= 1). */
-    private int pageSize;
+    protected int pageSize;
 
     /** Indicator that this is the last snapshot possible (EOS afterwards). */
-    private boolean isLastSnapshot;
+    protected boolean isLastSnapshot;
 
     public MaterializedCollectResultBase(
             TableResult tableResult, int maxRowCount, int overcommitThreshold) {
@@ -98,36 +97,6 @@ public abstract class MaterializedCollectResultBase extends CollectResultBase
     @Override
     public final boolean isMaterialized() {
         return true;
-    }
-
-    @Override
-    public TypedResult<Integer> snapshot(int pageSize) {
-        if (pageSize < 1) {
-            throw new SqlExecutionException("Page size must be greater than 0.");
-        }
-
-        synchronized (resultLock) {
-            // retrieval thread is dead and there are no results anymore
-            // or program failed
-            if ((!isRetrieving() && isLastSnapshot) || executionException.get() != null) {
-                return handleMissingResult();
-            }
-            // this snapshot is the last result that can be delivered
-            else if (!isRetrieving()) {
-                isLastSnapshot = true;
-            }
-
-            this.pageSize = pageSize;
-            snapshot.clear();
-            for (int i = validRowPosition; i < materializedTable.size(); i++) {
-                snapshot.add(materializedTable.get(i));
-            }
-
-            // at least one page
-            pageCount = Math.max(1, (int) Math.ceil(((double) snapshot.size() / pageSize)));
-
-            return TypedResult.payload(pageCount);
-        }
     }
 
     @Override

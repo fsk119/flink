@@ -20,6 +20,8 @@ package org.apache.flink.table.client.gateway.local.result;
 
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.table.api.TableResult;
+import org.apache.flink.table.client.gateway.SqlExecutionException;
+import org.apache.flink.table.client.gateway.TypedResult;
 import org.apache.flink.types.Row;
 
 import java.util.List;
@@ -51,6 +53,37 @@ public class MaterializedCollectBatchResult extends MaterializedCollectResultBas
             cleanUp();
         }
         materializedTable.add(row);
+    }
+
+    @Override
+    public TypedResult<Integer> snapshot(int pageSize) {
+        synchronized (resultLock) {
+            // the job finished with an exception
+            SqlExecutionException e = executionException.get();
+            if (e != null) {
+                throw e;
+            }
+
+            // wait for finish
+            if (isRetrieving()) {
+                return TypedResult.empty();
+            }
+            // we return a payload result the first time and EoS for the rest of times as if the
+            // results
+            // are retrieved dynamically
+            else if (!isLastSnapshot) {
+                isLastSnapshot = true;
+                this.pageSize = pageSize;
+                snapshot.clear();
+                for (int i = validRowPosition; i < materializedTable.size(); i++) {
+                    snapshot.add(materializedTable.get(i));
+                }
+                pageCount = Math.max(1, (int) Math.ceil(((double) snapshot.size() / pageSize)));
+                return TypedResult.payload(pageCount);
+            } else {
+                return TypedResult.endOfStream();
+            }
+        }
     }
 
     private void cleanUp() {

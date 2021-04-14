@@ -31,6 +31,8 @@ class TestingExecutorBuilder {
 
     private List<SupplierWithException<TypedResult<List<Row>>, SqlExecutionException>>
             resultChangesSupplier = Collections.emptyList();
+    private List<SupplierWithException<TypedResult<Integer>, SqlExecutionException>>
+            snapshotResultsSupplier = Collections.emptyList();
     private List<SupplierWithException<List<Row>, SqlExecutionException>> resultPagesSupplier =
             Collections.emptyList();
 
@@ -43,6 +45,14 @@ class TestingExecutorBuilder {
     }
 
     @SafeVarargs
+    public final TestingExecutorBuilder setSnapshotResultSupplier(
+            SupplierWithException<TypedResult<Integer>, SqlExecutionException>...
+                    snapshotResultsSupplier) {
+        this.snapshotResultsSupplier = Arrays.asList(snapshotResultsSupplier);
+        return this;
+    }
+
+    @SafeVarargs
     public final TestingExecutorBuilder setResultPageSupplier(
             SupplierWithException<List<Row>, SqlExecutionException>... resultPageSupplier) {
         resultPagesSupplier = Arrays.asList(resultPageSupplier);
@@ -50,6 +60,7 @@ class TestingExecutorBuilder {
     }
 
     public TestingExecutor build() {
-        return new TestingExecutor(resultChangesSupplier, resultPagesSupplier);
+        return new TestingExecutor(
+                resultChangesSupplier, snapshotResultsSupplier, resultPagesSupplier);
     }
 }
