@@ -16,40 +16,17 @@
  * limitations under the License.
  */
 
-package org.apache.flink.table.client.gateway;
+package org.apache.flink.table.client.exception;
 
-/** Exception thrown during the execution of SQL statements. */
-public class SqlExecutionException extends RuntimeException {
-
+/** Exception thrown during the parse of SQL statements. */
+public class SqlParseException extends SqlClientException {
     private static final long serialVersionUID = 1L;
 
-    private ExceptionType type = ExceptionType.SQL_EXECUTE_ERROR;
-
-    public SqlExecutionException(String message) {
+    public SqlParseException(String message) {
         super(message);
     }
 
-    public SqlExecutionException(ExceptionType type, String message) {
-        super(message);
-        this.type = type;
-    }
-
-    public SqlExecutionException(String message, Throwable e) {
+    public SqlParseException(String message, Throwable e) {
         super(message, e);
-    }
-
-    public SqlExecutionException(ExceptionType type, String message, Throwable e) {
-        super(message, e);
-        this.type = type;
-    }
-
-    public ExceptionType getType() {
-        return type;
-    }
-
-    /** Exception type is used to indicate the specific type of error. */
-    public enum ExceptionType {
-        SQL_PARSE_ERROR,
-        SQL_EXECUTE_ERROR
     }
 }

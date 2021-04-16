@@ -20,6 +20,7 @@ package org.apache.flink.table.client;
 
 import org.apache.flink.core.testutils.CommonTestUtils;
 import org.apache.flink.table.client.cli.TerminalStreamsResource;
+import org.apache.flink.table.client.exception.SqlClientException;
 import org.apache.flink.util.FileUtils;
 
 import org.junit.After;

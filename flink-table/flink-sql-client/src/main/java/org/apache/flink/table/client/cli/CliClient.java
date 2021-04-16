@@ -21,12 +21,13 @@ package org.apache.flink.table.client.cli;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.table.api.TableResult;
 import org.apache.flink.table.client.SqlClient;
-import org.apache.flink.table.client.SqlClientException;
 import org.apache.flink.table.client.config.ResultMode;
 import org.apache.flink.table.client.config.SqlClientOptions;
+import org.apache.flink.table.client.exception.SqlClientException;
+import org.apache.flink.table.client.exception.SqlExecutionException;
+import org.apache.flink.table.client.exception.SqlParseException;
 import org.apache.flink.table.client.gateway.Executor;
 import org.apache.flink.table.client.gateway.ResultDescriptor;
-import org.apache.flink.table.client.gateway.SqlExecutionException;
 import org.apache.flink.table.operations.BeginStatementSetOperation;
 import org.apache.flink.table.operations.CatalogSinkModifyOperation;
 import org.apache.flink.table.operations.EndStatementSetOperation;
@@ -83,6 +84,9 @@ import static org.apache.flink.table.client.cli.CliStrings.MESSAGE_FINISH_STATEM
 import static org.apache.flink.table.client.cli.CliStrings.MESSAGE_REMOVED_KEY;
 import static org.apache.flink.table.client.cli.CliStrings.MESSAGE_RESET_KEY;
 import static org.apache.flink.table.client.cli.CliStrings.MESSAGE_SET_KEY;
+import static org.apache.flink.table.client.cli.CliStrings.MESSAGE_SQL_EXECUTION_ERROR;
+import static org.apache.flink.table.client.cli.CliStrings.MESSAGE_SQL_PARSE_ERROR;
+import static org.apache.flink.table.client.cli.CliStrings.MESSAGE_SQL_UNDIFINE_ERROR;
 import static org.apache.flink.table.client.cli.CliStrings.MESSAGE_STATEMENT_SET_END_CALL_ERROR;
 import static org.apache.flink.table.client.cli.CliStrings.MESSAGE_STATEMENT_SET_SQL_EXECUTION_ERROR;
 import static org.apache.flink.table.client.cli.CliStrings.MESSAGE_STATEMENT_SUBMITTED;
@@ -93,7 +97,6 @@ import static org.apache.flink.table.client.config.YamlConfigUtils.getOptionName
 import static org.apache.flink.table.client.config.YamlConfigUtils.getPropertiesInPretty;
 import static org.apache.flink.table.client.config.YamlConfigUtils.isDeprecatedKey;
 import static org.apache.flink.table.client.config.YamlConfigUtils.isRemovedKey;
-import static org.apache.flink.table.client.gateway.SqlExecutionException.ExceptionType.SQL_PARSE_ERROR;
 import static org.apache.flink.util.Preconditions.checkState;
 
 /** SQL CLI client. */
@@ -321,8 +324,8 @@ public class CliClient implements AutoCloseable {
         try {
             final Optional<Operation> operation = parseCommand(statement);
             operation.ifPresent(op -> callOperation(op, executionMode));
-        } catch (SqlExecutionException e) {
-            printExecutionException(e);
+        } catch (SqlClientException e) {
+            printSqlClientException(e);
             return false;
         }
         return true;
@@ -577,13 +580,27 @@ public class CliClient implements AutoCloseable {
 
     // --------------------------------------------------------------------------------------------
 
-    private void printExecutionException(SqlExecutionException e) {
-        final String errorMessage;
-        if (SQL_PARSE_ERROR.equals(e.getType())) {
-            errorMessage = CliStrings.MESSAGE_SQL_PARSE_ERROR;
+    private void printSqlClientException(SqlClientException e) {
+        if (e instanceof SqlParseException) {
+            SqlParseException sqlParseException = (SqlParseException) e;
+            printSqlParseException(sqlParseException);
+        } else if (e instanceof SqlExecutionException) {
+            SqlExecutionException sqlExecutionException = (SqlExecutionException) e;
+            printSqlExecutionException(sqlExecutionException);
         } else {
-            errorMessage = CliStrings.MESSAGE_SQL_EXECUTION_ERROR;
+            printException(e, MESSAGE_SQL_UNDIFINE_ERROR);
         }
+    }
+
+    private void printSqlParseException(SqlParseException e) {
+        printException(e, MESSAGE_SQL_PARSE_ERROR);
+    }
+
+    private void printSqlExecutionException(SqlExecutionException e) {
+        printException(e, MESSAGE_SQL_EXECUTION_ERROR);
+    }
+
+    private void printException(SqlClientException e, String errorMessage) {
         LOG.warn(errorMessage, e);
         boolean isVerbose = executor.getSessionConfig(sessionId).get(SqlClientOptions.VERBOSE);
         terminal.writer().println(CliStrings.messageError(errorMessage, e, isVerbose).toAnsi());
