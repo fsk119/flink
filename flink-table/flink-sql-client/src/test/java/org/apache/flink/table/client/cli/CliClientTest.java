@@ -252,6 +252,7 @@ public class CliClientTest extends TestLogger {
                                 + ") WITH (\n"
                                 + "  'connector' = 'values'\n"
                                 + ");\n",
+                        "-- insert table ; \n" +
                         "INSERT INTO \n"
                                 + "--COMMENT ; \n"
                                 + "MyOtherTable VALUES (1, 101), (2, 102);",

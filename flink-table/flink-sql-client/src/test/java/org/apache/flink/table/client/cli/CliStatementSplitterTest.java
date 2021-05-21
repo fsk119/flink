@@ -55,12 +55,14 @@ public class CliStatementSplitterTest {
     public void testSplitContent() {
         List<String> lines =
                 Arrays.asList(
+                        "-- Define Table; \n" +
                         "CREATE TABLE MyTable (\n"
                                 + "  id INT,\n"
                                 + "  name STRING,\n"
                                 + ") WITH (\n"
                                 + "  'connector' = 'values',\n"
-                                + "  'test-property' = 'test.value'\n);",
+                                + "  'test-property' = 'test.value'\n);"
+                                + "-- Define Table",
                         "SET a = b;",
                         "\n" + "SELECT func(id) from MyTable\n;");
         List<String> actual = CliStatementSplitter.splitContent(String.join("\n", lines));
