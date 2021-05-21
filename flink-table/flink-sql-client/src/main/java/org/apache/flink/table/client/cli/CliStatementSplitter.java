@@ -69,7 +69,6 @@ public class CliStatementSplitter {
                 .collect(Collectors.joining("\n"));
     }
 
-
     private static boolean isEndOfStatement(String line) {
         return line.replaceAll(MASK, "").trim().endsWith(";");
     }
