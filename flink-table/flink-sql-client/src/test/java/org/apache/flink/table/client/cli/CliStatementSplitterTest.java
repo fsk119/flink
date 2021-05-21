@@ -23,7 +23,9 @@ import org.junit.Test;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 /** Test {@link CliStatementSplitter}. */
 public class CliStatementSplitterTest {
@@ -54,7 +56,7 @@ public class CliStatementSplitterTest {
         List<String> lines =
                 Arrays.asList(
                         "-- Define Table;\n"
-                                + "CREATE TABLE MyTable (\n"
+                        + "CREATE TABLE MyTable (\n"
                                 + "  id INT,\n"
                                 + "  name STRING,\n"
                                 + ") WITH (\n"

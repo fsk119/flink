@@ -42,7 +42,12 @@ import org.apache.flink.table.operations.QueryOperation;
 import org.apache.flink.types.Row;
 import org.apache.flink.util.CloseableIterator;
 import org.apache.flink.util.TestLogger;
-import org.jline.reader.*;
+
+import org.jline.reader.Candidate;
+import org.jline.reader.LineReader;
+import org.jline.reader.LineReaderBuilder;
+import org.jline.reader.ParsedLine;
+import org.jline.reader.Parser;
 import org.jline.terminal.Terminal;
 import org.jline.terminal.impl.DumbTerminal;
 import org.junit.Rule;
@@ -50,16 +55,30 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
 import javax.annotation.Nullable;
-import java.io.*;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static org.apache.flink.table.api.config.TableConfigOptions.TABLE_DML_SYNC;
 import static org.apache.flink.table.client.cli.CliClient.DEFAULT_TERMINAL_FACTORY;
 import static org.apache.flink.table.client.cli.CliStrings.MESSAGE_SQL_EXECUTION_ERROR;
 import static org.hamcrest.CoreMatchers.containsString;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 
 /** Tests for the {@link CliClient}. */
 public class CliClientTest extends TestLogger {
@@ -234,7 +253,7 @@ public class CliClientTest extends TestLogger {
                                 + "  'connector' = 'values'\n"
                                 + ");\n",
                         "-- insert table ;\n"
-                                + "INSERT INTO \n"
+                        + "INSERT INTO \n"
                                 + "--COMMENT ; \n"
                                 + "MyOtherTable VALUES (1, 101), (2, 102);",
                         "DESC MyOtherTable;",
