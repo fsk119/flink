@@ -56,7 +56,7 @@ public class CliStatementSplitterTest {
         List<String> lines =
                 Arrays.asList(
                         "-- Define Table;\n"
-                        + "CREATE TABLE MyTable (\n"
+                                + "CREATE TABLE MyTable (\n"
                                 + "  id INT,\n"
                                 + "  name STRING,\n"
                                 + ") WITH (\n"
