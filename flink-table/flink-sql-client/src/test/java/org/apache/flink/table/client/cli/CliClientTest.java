@@ -136,10 +136,10 @@ public class CliClientTest extends TestLogger {
         InputStream inputStream = new ByteArrayInputStream("help;\nuse catalog cat;\n".getBytes());
         Path historyFilePath = historyTempFile();
         try (Terminal terminal =
-                     new DumbTerminal(inputStream, new TerminalUtils.MockOutputStream());
-             CliClient client =
-                     new CliClient(
-                             () -> terminal, sessionId, mockExecutor, historyFilePath, null)) {
+                        new DumbTerminal(inputStream, new TerminalUtils.MockOutputStream());
+                CliClient client =
+                        new CliClient(
+                                () -> terminal, sessionId, mockExecutor, historyFilePath, null)) {
             client.executeInInteractiveMode();
             List<String> content = Files.readAllLines(historyFilePath);
             assertEquals(2, content.size());
@@ -276,12 +276,12 @@ public class CliClientTest extends TestLogger {
         OutputStream outputStream = new ByteArrayOutputStream(256);
 
         try (CliClient client =
-                     new CliClient(
-                             () -> TerminalUtils.createDumbTerminal(outputStream),
-                             sessionId,
-                             mockExecutor,
-                             historyFilePath,
-                             null)) {
+                new CliClient(
+                        () -> TerminalUtils.createDumbTerminal(outputStream),
+                        sessionId,
+                        mockExecutor,
+                        historyFilePath,
+                        null)) {
             Thread thread = new Thread(() -> client.executeInNonInteractiveMode(content));
             thread.start();
 
@@ -354,12 +354,12 @@ public class CliClientTest extends TestLogger {
         String sessionId = executor.openSession("test-session");
         OutputStream outputStream = new ByteArrayOutputStream(256);
         try (CliClient client =
-                     new CliClient(
-                             () -> TerminalUtils.createDumbTerminal(outputStream),
-                             sessionId,
-                             executor,
-                             historyTempFile(),
-                             null)) {
+                new CliClient(
+                        () -> TerminalUtils.createDumbTerminal(outputStream),
+                        sessionId,
+                        executor,
+                        historyTempFile(),
+                        null)) {
             client.executeInNonInteractiveMode(content);
         }
         return outputStream.toString();

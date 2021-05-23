@@ -55,7 +55,7 @@ public class CliStatementSplitterTest {
     public void testSplitContent() {
         List<String> lines =
                 Arrays.asList(
-                        "-- Define Table;\n"
+                        "-- Define Table; \n"
                                 + "CREATE TABLE MyTable (\n"
                                 + "  id INT,\n"
                                 + "  name STRING,\n"
