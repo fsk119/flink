@@ -176,12 +176,14 @@ public class SqlClientTest {
     public void testInitFile() throws Exception {
         List<String> statements =
                 Arrays.asList(
-                        "CREATE TABLE source ("
+                        "-- Define Table \n"
+                                + "CREATE TABLE source ("
                                 + "id INT,"
                                 + "val STRING"
                                 + ") WITH ("
                                 + "  'connector' = 'values'"
-                                + ");\n",
+                                + "); "
+                                + "-- Define Table \n",
                         "SET key = value;\n");
         String initFile = createSqlFile(statements, "init-sql.sql");
 
