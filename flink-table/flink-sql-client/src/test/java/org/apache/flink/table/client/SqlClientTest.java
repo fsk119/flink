@@ -184,7 +184,7 @@ public class SqlClientTest {
                                 + "  'connector' = 'values'"
                                 + "); "
                                 + "-- Define Table \n",
-                        "SET key = value;\n");
+                        "SET key = value; -- define set \n");
         String initFile = createSqlFile(statements, "init-sql.sql");
 
         String[] args = new String[] {"-i", initFile};
