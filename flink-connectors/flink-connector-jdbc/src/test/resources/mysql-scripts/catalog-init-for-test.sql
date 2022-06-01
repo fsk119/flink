@@ -105,3 +105,27 @@ CREATE TABLE `t_grouped_by_sink` (
   `col_bigint` bigint(20) DEFAULT NULL,
   PRIMARY KEY (`pid`) USING BTREE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+-- ----------------------------
+
+-- Create the `test` database.
+DROP DATABASE IF EXISTS `test2`;
+CREATE DATABASE `test2` CHARSET=utf8;
+
+-- Create test table t_grouped_by_sink.
+USE `test2`;
+DROP TABLE IF EXISTS `t_grouped_by_sink`;
+CREATE TABLE `t_grouped_by_sink` (
+ `pid` bigint(20) NOT NULL,
+ `col_bigint` bigint(20) NOT NULL,
+ PRIMARY KEY (`col_bigint`) USING BTREE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+create database `flinksql_test`;
+
+CREATE TABLE flinksql_test.`user` (
+                                      `uid` bigint(20) NOT NULL,
+                                      `uname` varchar(36) DEFAULT NULL,
+                                      `others` varchar(128) DEFAULT NULL,
+                                      PRIMARY KEY (`uid`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;

@@ -39,7 +39,7 @@ public class MySqlCatalogTestBase {
 
     public static final Logger LOG = LoggerFactory.getLogger(MySqlCatalogTestBase.class);
 
-    protected static final DockerImageName MYSQL_57_IMAGE = DockerImageName.parse("mysql:5.7.34");
+    protected static final DockerImageName MYSQL_57_IMAGE = DockerImageName.parse("mysql:8.0.16");
     protected static final String TEST_CATALOG_NAME = "mysql_catalog";
     protected static final String TEST_USERNAME = "mysql";
     protected static final String TEST_PWD = "mysql";
@@ -48,6 +48,7 @@ public class MySqlCatalogTestBase {
     protected static final String TEST_SINK_TABLE_ALL_TYPES = "t_all_types_sink";
     protected static final String TEST_TABLE_SINK_FROM_GROUPED_BY = "t_grouped_by_sink";
     protected static final String MYSQL_INIT_SCRIPT = "mysql-scripts/catalog-init-for-test.sql";
+    protected static final String MYSQL_INIT_SCRIPT2 = "mysql-scripts/test.sql";
     protected static final Map<String, String> DEFAULT_CONTAINER_ENV_MAP =
             new HashMap<String, String>() {
                 {

@@ -247,7 +247,7 @@ public class MySqlCatalogITCase extends MySqlCatalogTestBase {
 
     @Test
     public void testGetTable() throws TableNotExistException {
-        CatalogBaseTable table = catalog.getTable(new ObjectPath(TEST_DB, TEST_TABLE_ALL_TYPES));
+        CatalogBaseTable table = catalog.getTable(new ObjectPath("flinksql_test", "user"));
         assertEquals(TABLE_SCHEMA, table.getUnresolvedSchema());
     }
 
