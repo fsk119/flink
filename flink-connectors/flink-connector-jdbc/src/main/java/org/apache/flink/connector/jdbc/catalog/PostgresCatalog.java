@@ -76,7 +76,7 @@ public class PostgresCatalog extends AbstractJdbcCatalog {
             String username,
             String pwd,
             String baseUrl) {
-        super(catalogName, null, defaultDatabase, username, pwd, baseUrl);
+        super(catalogName, defaultDatabase, username, pwd, baseUrl);
         this.dialectTypeMapper = new PostgresTypeMapper();
     }
 
@@ -167,6 +167,11 @@ public class PostgresCatalog extends AbstractJdbcCatalog {
     @Override
     protected String getSchemaName(ObjectPath tablePath) {
         return PostgresTablePath.fromFlinkTableName(tablePath.getObjectName()).getPgSchemaName();
+    }
+
+    @Override
+    protected String getCatalogName(ObjectPath tablePath) {
+        return tablePath.getDatabaseName();
     }
 
     @Override

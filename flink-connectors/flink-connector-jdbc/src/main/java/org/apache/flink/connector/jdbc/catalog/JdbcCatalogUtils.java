@@ -40,7 +40,6 @@ public class JdbcCatalogUtils {
     /** Create catalog instance from given information. */
     public static AbstractJdbcCatalog createCatalog(
             String catalogName,
-            String dbCatalog,
             String defaultDatabase,
             String username,
             String pwd,

@@ -85,7 +85,6 @@ public abstract class AbstractJdbcCatalog extends AbstractCatalog {
 
     private static final Logger LOG = LoggerFactory.getLogger(AbstractJdbcCatalog.class);
 
-    protected final String dbCatalog;
     protected final String username;
     protected final String pwd;
     protected final String baseUrl;
@@ -93,7 +92,6 @@ public abstract class AbstractJdbcCatalog extends AbstractCatalog {
 
     public AbstractJdbcCatalog(
             String catalogName,
-            String dbCatalog,
             String defaultDatabase,
             String username,
             String pwd,
@@ -106,7 +104,6 @@ public abstract class AbstractJdbcCatalog extends AbstractCatalog {
 
         JdbcCatalogUtils.validateJdbcUrl(baseUrl);
 
-        this.dbCatalog = dbCatalog;
         this.username = username;
         this.pwd = pwd;
         this.baseUrl = baseUrl.endsWith("/") ? baseUrl : baseUrl + "/";
@@ -236,7 +233,7 @@ public abstract class AbstractJdbcCatalog extends AbstractCatalog {
         try (Connection conn = DriverManager.getConnection(dbUrl, username, pwd)) {
             DatabaseMetaData metaData = conn.getMetaData();
             Optional<UniqueConstraint> primaryKey =
-                    getPrimaryKey(metaData, getDbCatalog(), getSchemaName(tablePath), getTableName(tablePath));
+                    getPrimaryKey(metaData, getCatalogName(tablePath), getSchemaName(tablePath), getTableName(tablePath));
 
             PreparedStatement ps =
                     conn.prepareStatement(
@@ -516,11 +513,12 @@ public abstract class AbstractJdbcCatalog extends AbstractCatalog {
         throw new UnsupportedOperationException();
     }
 
+    protected String getCatalogName(ObjectPath tablePath) {
+        throw new UnsupportedOperationException();
+    }
+
     protected String getSchemaTableName(ObjectPath tablePath) {
         throw new UnsupportedOperationException();
     }
 
-    protected String getDbCatalog() {
-        return dbCatalog;
-    }
 }

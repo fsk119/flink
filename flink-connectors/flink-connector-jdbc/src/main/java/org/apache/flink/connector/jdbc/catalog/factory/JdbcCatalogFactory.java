@@ -72,7 +72,6 @@ public class JdbcCatalogFactory implements CatalogFactory {
 
         return new JdbcCatalog(
                 context.getName(),
-                helper.getOptions().get(DB_CATALOG),
                 helper.getOptions().get(DEFAULT_DATABASE),
                 helper.getOptions().get(USERNAME),
                 helper.getOptions().get(PASSWORD),

@@ -23,15 +23,17 @@ import org.apache.flink.table.api.Schema;
 
 import org.apache.flink.shaded.guava30.com.google.common.collect.Lists;
 
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
-import org.junit.ClassRule;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.containers.output.Slf4jLogConsumer;
 import org.testcontainers.utility.DockerImageName;
 
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /** Test base for {@link MySqlCatalog}. */
@@ -39,7 +41,7 @@ public class MySqlCatalogTestBase {
 
     public static final Logger LOG = LoggerFactory.getLogger(MySqlCatalogTestBase.class);
 
-    protected static final DockerImageName MYSQL_57_IMAGE = DockerImageName.parse("mysql:5.7.34");
+    protected static final List<String> dockerImageNames = Arrays.asList("mysql:5.7.34", "mysql:8.0.16");
     protected static final String TEST_CATALOG_NAME = "mysql_catalog";
     protected static final String TEST_USERNAME = "mysql";
     protected static final String TEST_PWD = "mysql";
@@ -106,23 +108,34 @@ public class MySqlCatalogTestBase {
                     .primaryKeyNamed("PRIMARY", Lists.newArrayList("pid"))
                     .build();
 
-    @ClassRule
-    public static final MySQLContainer<?> MYSQL_CONTAINER =
-            new MySQLContainer<>(MYSQL_57_IMAGE)
+    public static final Map<String, MySQLContainer<?>> MYSQL_CONTAINERS = new HashMap<>();
+
+    public static final Map<String, MySqlCatalog> CATALOGS = new HashMap<>();
+
+    @BeforeClass
+    public static void beforeAll() {
+
+        for (String dockerImage: dockerImageNames) {
+            MySQLContainer<?> container = new MySQLContainer<>(DockerImageName.parse(dockerImage))
                     .withUsername("root")
                     .withPassword("")
                     .withEnv(DEFAULT_CONTAINER_ENV_MAP)
                     .withInitScript(MYSQL_INIT_SCRIPT)
                     .withLogConsumer(new Slf4jLogConsumer(LOG));
 
-    protected static MySqlCatalog catalog;
+            container.start();
 
-    @BeforeClass
-    public static void beforeAll() {
-        String baseUrl =
-                MYSQL_CONTAINER
-                        .getJdbcUrl()
-                        .substring(0, MYSQL_CONTAINER.getJdbcUrl().lastIndexOf("/"));
-        catalog = new MySqlCatalog(TEST_CATALOG_NAME, TEST_DB, TEST_USERNAME, TEST_PWD, baseUrl);
+            MYSQL_CONTAINERS.put(dockerImage, container);
+            CATALOGS.put(dockerImage, new MySqlCatalog(TEST_CATALOG_NAME, TEST_DB, TEST_USERNAME, TEST_PWD, container.getJdbcUrl()
+                    .substring(0, container.getJdbcUrl().lastIndexOf("/"))));
+        }
+    }
+
+    @AfterClass
+    public static void cleanup() {
+        for (MySQLContainer<?> container: MYSQL_CONTAINERS.values()) {
+
+            container.stop();
+        }
     }
 }

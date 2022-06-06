@@ -32,6 +32,8 @@ import org.apache.flink.shaded.guava30.com.google.common.collect.Lists;
 
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import java.math.BigDecimal;
 import java.sql.Date;
@@ -49,6 +51,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /** E2E test for {@link MySqlCatalog}. */
+@RunWith(Parameterized.class)
 public class MySqlCatalogITCase extends MySqlCatalogTestBase {
 
     private static final List<Row> ALL_TYPES_ROWS =
@@ -150,6 +153,7 @@ public class MySqlCatalogITCase extends MySqlCatalogTestBase {
                             Timestamp.valueOf("2021-08-04 01:53:19.098").toLocalDateTime(),
                             null));
 
+    private final MySqlCatalog catalog;
     private TableEnvironment tEnv;
 
     @Before
@@ -160,6 +164,15 @@ public class MySqlCatalogITCase extends MySqlCatalogTestBase {
         // Use mysql catalog.
         tEnv.registerCatalog(TEST_CATALOG_NAME, catalog);
         tEnv.useCatalog(TEST_CATALOG_NAME);
+    }
+
+    public MySqlCatalogITCase(String version) {
+        catalog = CATALOGS.get(version);
+    }
+
+    @Parameterized.Parameters(name = "version = {0}")
+    public static String[] params() {
+        return dockerImageNames.toArray(new String[0]);
     }
 
     // ------ databases ------
