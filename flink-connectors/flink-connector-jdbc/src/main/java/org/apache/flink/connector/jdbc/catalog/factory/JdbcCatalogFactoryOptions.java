@@ -30,6 +30,9 @@ public class JdbcCatalogFactoryOptions {
 
     public static final String IDENTIFIER = "jdbc";
 
+    public static final ConfigOption<String> DB_CATALOG =
+            ConfigOptions.key("db-catalog").stringType().noDefaultValue();
+
     public static final ConfigOption<String> DEFAULT_DATABASE =
             ConfigOptions.key(CommonCatalogOptions.DEFAULT_DATABASE_KEY)
                     .stringType()

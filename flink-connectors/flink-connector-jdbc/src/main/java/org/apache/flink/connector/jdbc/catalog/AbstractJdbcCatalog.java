@@ -85,6 +85,7 @@ public abstract class AbstractJdbcCatalog extends AbstractCatalog {
 
     private static final Logger LOG = LoggerFactory.getLogger(AbstractJdbcCatalog.class);
 
+    protected final String dbCatalog;
     protected final String username;
     protected final String pwd;
     protected final String baseUrl;
@@ -92,6 +93,7 @@ public abstract class AbstractJdbcCatalog extends AbstractCatalog {
 
     public AbstractJdbcCatalog(
             String catalogName,
+            String dbCatalog,
             String defaultDatabase,
             String username,
             String pwd,
@@ -104,6 +106,7 @@ public abstract class AbstractJdbcCatalog extends AbstractCatalog {
 
         JdbcCatalogUtils.validateJdbcUrl(baseUrl);
 
+        this.dbCatalog = dbCatalog;
         this.username = username;
         this.pwd = pwd;
         this.baseUrl = baseUrl.endsWith("/") ? baseUrl : baseUrl + "/";
@@ -144,12 +147,12 @@ public abstract class AbstractJdbcCatalog extends AbstractCatalog {
     // ------ retrieve PK constraint ------
 
     protected Optional<UniqueConstraint> getPrimaryKey(
-            DatabaseMetaData metaData, String schema, String table) throws SQLException {
+            DatabaseMetaData metaData, String catalog, String schema, String table) throws SQLException {
 
         // According to the Javadoc of java.sql.DatabaseMetaData#getPrimaryKeys,
         // the returned primary key columns are ordered by COLUMN_NAME, not by KEY_SEQ.
         // We need to sort them based on the KEY_SEQ value.
-        ResultSet rs = metaData.getPrimaryKeys(null, schema, table);
+        ResultSet rs = metaData.getPrimaryKeys(catalog, schema, table);
 
         Map<Integer, String> keySeqColumnName = new HashMap<>();
         String pkName = null;
@@ -233,7 +236,7 @@ public abstract class AbstractJdbcCatalog extends AbstractCatalog {
         try (Connection conn = DriverManager.getConnection(dbUrl, username, pwd)) {
             DatabaseMetaData metaData = conn.getMetaData();
             Optional<UniqueConstraint> primaryKey =
-                    getPrimaryKey(metaData, getSchemaName(tablePath), getTableName(tablePath));
+                    getPrimaryKey(metaData, getDbCatalog(), getSchemaName(tablePath), getTableName(tablePath));
 
             PreparedStatement ps =
                     conn.prepareStatement(
@@ -515,5 +518,9 @@ public abstract class AbstractJdbcCatalog extends AbstractCatalog {
 
     protected String getSchemaTableName(ObjectPath tablePath) {
         throw new UnsupportedOperationException();
+    }
+
+    protected String getDbCatalog() {
+        return dbCatalog;
     }
 }

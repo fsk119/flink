@@ -76,7 +76,7 @@ public class PostgresCatalog extends AbstractJdbcCatalog {
             String username,
             String pwd,
             String baseUrl) {
-        super(catalogName, defaultDatabase, username, pwd, baseUrl);
+        super(catalogName, null, defaultDatabase, username, pwd, baseUrl);
         this.dialectTypeMapper = new PostgresTypeMapper();
     }
 

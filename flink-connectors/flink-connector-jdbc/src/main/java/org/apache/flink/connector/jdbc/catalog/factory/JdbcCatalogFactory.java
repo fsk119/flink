@@ -31,6 +31,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 import static org.apache.flink.connector.jdbc.catalog.factory.JdbcCatalogFactoryOptions.BASE_URL;
+import static org.apache.flink.connector.jdbc.catalog.factory.JdbcCatalogFactoryOptions.DB_CATALOG;
 import static org.apache.flink.connector.jdbc.catalog.factory.JdbcCatalogFactoryOptions.DEFAULT_DATABASE;
 import static org.apache.flink.connector.jdbc.catalog.factory.JdbcCatalogFactoryOptions.PASSWORD;
 import static org.apache.flink.connector.jdbc.catalog.factory.JdbcCatalogFactoryOptions.USERNAME;
@@ -71,6 +72,7 @@ public class JdbcCatalogFactory implements CatalogFactory {
 
         return new JdbcCatalog(
                 context.getName(),
+                helper.getOptions().get(DB_CATALOG),
                 helper.getOptions().get(DEFAULT_DATABASE),
                 helper.getOptions().get(USERNAME),
                 helper.getOptions().get(PASSWORD),

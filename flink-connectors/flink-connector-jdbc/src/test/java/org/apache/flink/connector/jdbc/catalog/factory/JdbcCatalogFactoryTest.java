@@ -45,6 +45,7 @@ public class JdbcCatalogFactoryTest {
     protected static JdbcCatalog catalog;
 
     protected static final String TEST_CATALOG_NAME = "mypg";
+    protected static final String TEST_DB_CATALOG = null;
     protected static final String TEST_USERNAME = "postgres";
     protected static final String TEST_PWD = "postgres";
 
@@ -58,6 +59,7 @@ public class JdbcCatalogFactoryTest {
         catalog =
                 new JdbcCatalog(
                         TEST_CATALOG_NAME,
+                        TEST_DB_CATALOG,
                         PostgresCatalog.DEFAULT_DATABASE,
                         TEST_USERNAME,
                         TEST_PWD,

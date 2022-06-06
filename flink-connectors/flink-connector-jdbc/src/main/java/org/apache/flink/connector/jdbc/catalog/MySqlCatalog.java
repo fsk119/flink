@@ -65,7 +65,7 @@ public class MySqlCatalog extends AbstractJdbcCatalog {
             String username,
             String pwd,
             String baseUrl) {
-        super(catalogName, defaultDatabase, username, pwd, baseUrl);
+        super(catalogName, defaultDatabase, defaultDatabase, username, pwd, baseUrl);
 
         String driverVersion =
                 Preconditions.checkNotNull(getDriverVersion(), "Driver version must not be null.");
@@ -152,7 +152,7 @@ public class MySqlCatalog extends AbstractJdbcCatalog {
 
     @Override
     protected String getSchemaName(ObjectPath tablePath) {
-        return null;
+        return tablePath.getDatabaseName();
     }
 
     @Override
