@@ -39,6 +39,7 @@ import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.deser.std
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -102,7 +103,7 @@ public class JsonResultSetDeserializer extends StdDeserializer<ResultSet> {
         for (RowDataInfo rowDataInfo : rowDataInfos) {
             RowKind rowKind = RowKind.valueOf(rowDataInfo.getKind());
             GenericRowData rowData = new GenericRowData(rowKind, rowDataInfo.getFields().size());
-            List<JsonNode> fields = rowDataInfo.getFields();
+            List<JsonNode> fields = Collections.emptyList(); // rowDataInfo.getFields();
             // Setting fields of one RowData
             for (int i = 0; i < rowData.getArity(); ++i) {
                 JsonNode jsonNode = fields.get(i);

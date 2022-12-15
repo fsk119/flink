@@ -18,34 +18,29 @@
 
 package org.apache.flink.table.gateway.rest.serde;
 
-import org.apache.flink.annotation.Internal;
-import org.apache.flink.table.data.RowData;
 import org.apache.flink.types.RowKind;
-import org.apache.flink.util.Preconditions;
 
-import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.annotation.JsonCreator;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.annotation.JsonProperty;
 
-import java.util.List;
+public class DataInfo {
 
-/** A RowDataInfo info represents a {@link RowData}. */
-@Internal
-public class RowDataInfo extends DataInfo {
+    protected static final String FIELD_NAME_KIND = "kind";
 
-    private static final String FIELD_NAME_FIELDS = "fields";
+    @JsonProperty(FIELD_NAME_KIND)
+    private final RowKind rowKind;
 
-    @JsonProperty(FIELD_NAME_FIELDS)
-    private final List<String> fields;
-
-    @JsonCreator
-    public RowDataInfo(
-            @JsonProperty(FIELD_NAME_KIND) RowKind kind,
-            @JsonProperty(FIELD_NAME_FIELDS) List<String> fields) {
-        super(kind);
-        this.fields = Preconditions.checkNotNull(fields, "fields must not be null");
+    public DataInfo(RowKind rowKind) {
+        this.rowKind = rowKind;
     }
 
-    public List<String> getFields() {
-        return fields;
+    public RowKind getRowKind() {
+        return rowKind;
+    }
+
+    public <C> C unwrap(Class<C> clazz) {
+        if (clazz.isInstance(this)) {
+            return clazz.cast(this);
+        }
+        return null;
     }
 }

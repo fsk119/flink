@@ -113,7 +113,7 @@ public class JsonResultSetSerializer extends StdSerializer<ResultSet> {
                 RowDataToJsonConverters.RowDataToJsonConverter converter = converters.get(i);
                 fields.add(buildJsonValueConverter(converter).apply(field));
             }
-            data.add(new RowDataInfo(rowKind.name(), fields));
+            //            data.add(new RowDataInfo(rowKind.name(), fields));
         }
 
         serializerProvider.defaultSerializeField(FIELD_NAME_DATA, data, jsonGenerator);
