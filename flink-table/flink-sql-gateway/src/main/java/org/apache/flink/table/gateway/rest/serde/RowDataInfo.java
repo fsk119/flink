@@ -19,33 +19,35 @@
 package org.apache.flink.table.gateway.rest.serde;
 
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.types.RowKind;
 import org.apache.flink.util.Preconditions;
 
-import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.annotation.JsonCreator;
-import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.annotation.JsonProperty;
-
 import java.util.List;
+import java.util.stream.Collectors;
 
 /** A RowDataInfo info represents a {@link RowData}. */
 @Internal
-public class RowDataInfo extends DataInfo {
+public class RowDataInfo {
 
-    private static final String FIELD_NAME_FIELDS = "fields";
+    protected static final String NULL_VALUE = "null";
 
-    @JsonProperty(FIELD_NAME_FIELDS)
-    private final List<String> fields;
+    private final RowKind rowKind;
+    private final List<Object> fields;
 
-    @JsonCreator
-    public RowDataInfo(
-            @JsonProperty(FIELD_NAME_KIND) RowKind kind,
-            @JsonProperty(FIELD_NAME_FIELDS) List<String> fields) {
-        super(kind);
-        this.fields = Preconditions.checkNotNull(fields, "fields must not be null");
+    public RowDataInfo(RowKind rowKind, List<Object> fields) {
+        this.rowKind = Preconditions.checkNotNull(rowKind, "row kind must not be null.");
+        this.fields = Preconditions.checkNotNull(fields, "fields must not be null.");
     }
 
-    public List<String> getFields() {
-        return fields;
+    public RowData toRowData() {
+        return GenericRowData.of(rowKind, fields);
+    }
+
+    public List<String> toStringifiedFields() {
+        return fields.stream()
+                .map(field -> field == null ? NULL_VALUE : field.toString())
+                .collect(Collectors.toList());
     }
 }

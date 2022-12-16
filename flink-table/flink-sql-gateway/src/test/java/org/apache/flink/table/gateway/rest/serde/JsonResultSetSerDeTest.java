@@ -72,7 +72,7 @@ import static org.apache.flink.table.api.DataTypes.TIMESTAMP_WITH_LOCAL_TIME_ZON
 import static org.apache.flink.table.api.DataTypes.TINYINT;
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** Tests for {@link JsonResultSetSerializer} and {@link JsonResultSetDeserializer}. */
+/** Tests for {@link ResultInfoSerializer} and {@link ResultInfoDeserializer}. */
 class JsonResultSetSerDeTest {
 
     private static final byte tinyint = 'c';

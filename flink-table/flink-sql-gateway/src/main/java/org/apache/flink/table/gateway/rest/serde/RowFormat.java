@@ -18,6 +18,9 @@
 
 package org.apache.flink.table.gateway.rest.serde;
 
+import org.apache.flink.annotation.PublicEvolving;
+
+@PublicEvolving
 public enum RowFormat {
     PLAIN_TEXT,
 

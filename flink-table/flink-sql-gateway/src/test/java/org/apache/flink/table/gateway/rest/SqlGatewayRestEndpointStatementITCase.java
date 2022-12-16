@@ -43,7 +43,7 @@ import org.apache.flink.table.gateway.rest.message.statement.ExecuteStatementRes
 import org.apache.flink.table.gateway.rest.message.statement.FetchResultsResponseBody;
 import org.apache.flink.table.gateway.rest.message.statement.FetchResultsTokenParameters;
 import org.apache.flink.table.gateway.rest.serde.ResultInfo;
-import org.apache.flink.table.gateway.rest.serde.RowDataUtil;
+import org.apache.flink.table.gateway.rest.serde.RowDataInfo;
 import org.apache.flink.table.gateway.rest.util.SqlGatewayRestEndpointExtension;
 import org.apache.flink.table.planner.functions.casting.RowDataToStringConverterImpl;
 import org.apache.flink.table.types.utils.DataTypeUtils;
@@ -260,8 +260,11 @@ class SqlGatewayRestEndpointStatementITCase extends AbstractSqlGatewayStatementI
         }
     }
 
-    private static Iterator<RowData> convertToRowData(ResultInfo info) {
-        return RowDataUtil.fromJsonRowDataInfo(info).stream().iterator();
+    private static Iterator<RowData> convertToRowData(ResultInfo result) {
+        return result.getRowDataInfo().stream()
+                .map(RowDataInfo::toRowData)
+                .collect(Collectors.toList())
+                .iterator();
     }
 
     private static Long parseTokenFromUri(String uri) {

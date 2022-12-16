@@ -101,8 +101,9 @@ public class JsonResultSetDeserializer extends StdDeserializer<ResultSet> {
 
         // Parse the RowData from RowDataInfo
         for (RowDataInfo rowDataInfo : rowDataInfos) {
-            RowKind rowKind = RowKind.valueOf(rowDataInfo.getKind());
-            GenericRowData rowData = new GenericRowData(rowKind, rowDataInfo.getFields().size());
+            RowKind rowKind = RowKind.INSERT; // RowKind.valueOf(rowDataInfo.getKind());
+            GenericRowData rowData =
+                    null; // new GenericRowData(rowKind, rowDataInfo.getFields().size());
             List<JsonNode> fields = Collections.emptyList(); // rowDataInfo.getFields();
             // Setting fields of one RowData
             for (int i = 0; i < rowData.getArity(); ++i) {
