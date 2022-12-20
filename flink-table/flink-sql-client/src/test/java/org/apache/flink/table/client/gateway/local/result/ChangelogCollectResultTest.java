@@ -18,17 +18,18 @@
 
 package org.apache.flink.table.client.gateway.local.result;
 
+import org.apache.flink.api.common.JobID;
 import org.apache.flink.table.api.DataTypes;
-import org.apache.flink.table.api.ResultKind;
 import org.apache.flink.table.catalog.Column;
 import org.apache.flink.table.catalog.ResolvedSchema;
-import org.apache.flink.table.client.cli.utils.TestTableResult;
+import org.apache.flink.table.client.gateway.ClientResult;
 import org.apache.flink.table.client.gateway.SqlExecutionException;
 import org.apache.flink.table.client.gateway.TypedResult;
-import org.apache.flink.table.data.RowData;
-import org.apache.flink.types.Row;
+import org.apache.flink.table.gateway.rest.serde.RowDataInfo;
+import org.apache.flink.types.RowKind;
 import org.apache.flink.util.CloseableIterator;
 
+import org.assertj.core.util.Arrays;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -42,20 +43,23 @@ class ChangelogCollectResultTest {
     @Test
     void testRetrieveChanges() throws Exception {
         int totalCount = ChangelogCollectResult.CHANGE_RECORD_BUFFER_SIZE * 2;
-        CloseableIterator<Row> data =
+        CloseableIterator<RowDataInfo> data =
                 CloseableIterator.adapterForIterator(
-                        IntStream.range(0, totalCount).mapToObj(Row::of).iterator());
+                        IntStream.range(0, totalCount)
+                                .mapToObj(id -> new RowDataInfo(RowKind.INSERT, Arrays.asList(id)))
+                                .iterator());
         ChangelogCollectResult changelogResult =
                 new ChangelogCollectResult(
-                        new TestTableResult(
-                                ResultKind.SUCCESS_WITH_CONTENT,
+                        new ClientResult(
+                                true,
                                 ResolvedSchema.of(Column.physical("id", DataTypes.INT())),
+                                JobID.generate(),
                                 data));
 
         int count = 0;
         boolean running = true;
         while (running) {
-            final TypedResult<List<RowData>> result = changelogResult.retrieveChanges();
+            final TypedResult<List<RowDataInfo>> result = changelogResult.retrieveChanges();
             Thread.sleep(100); // slow the processing down
             switch (result.getType()) {
                 case EMPTY:

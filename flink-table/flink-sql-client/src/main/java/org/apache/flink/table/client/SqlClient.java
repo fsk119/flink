@@ -27,6 +27,7 @@ import org.apache.flink.table.client.gateway.SqlExecutionException;
 import org.apache.flink.table.client.gateway.context.DefaultContext;
 import org.apache.flink.table.client.gateway.local.LocalContextUtils;
 import org.apache.flink.table.client.gateway.local.LocalExecutor;
+import org.apache.flink.table.gateway.SqlGateway;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.SystemUtils;
@@ -34,15 +35,24 @@ import org.jline.terminal.Terminal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.annotation.Nullable;
+
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Optional;
+import java.util.Properties;
 import java.util.function.Supplier;
 
 import static org.apache.flink.table.client.cli.CliClient.DEFAULT_TERMINAL_FACTORY;
+import static org.apache.flink.table.gateway.rest.util.SqlGatewayRestOptions.BIND_ADDRESS;
+import static org.apache.flink.table.gateway.rest.util.SqlGatewayRestOptions.BIND_PORT;
 
 /**
  * SQL Client for submitting SQL statements. The client can be executed in two modes: a gateway and
@@ -77,26 +87,34 @@ public class SqlClient {
     }
 
     private void start() {
+        // create local executor with default environment
+        DefaultContext defaultContext = LocalContextUtils.buildDefaultContext(options);
+        SqlGateway gateway;
+        InetSocketAddress socketAddress;
         if (isEmbedded) {
-            // create local executor with default environment
+            String host = InetAddress.getLoopbackAddress().getHostAddress();
+            String port = defaultContext.getFlinkConfig().get(BIND_PORT);
 
-            DefaultContext defaultContext = LocalContextUtils.buildDefaultContext(options);
-            final Executor executor = new LocalExecutor(defaultContext);
-            executor.start();
-
-            // Open an new session
-            executor.openSession(options.getSessionId());
-            try {
-                // add shutdown hook
-                Runtime.getRuntime().addShutdownHook(new EmbeddedShutdownThread(executor));
-
-                // do the actual work
-                openCli(executor);
-            } finally {
-                executor.closeSession();
-            }
+            Properties properties = new Properties();
+            properties.setProperty(BIND_PORT.key(), port);
+            properties.setProperty(BIND_ADDRESS.key(), host);
+            socketAddress = new InetSocketAddress(host, Integer.parseInt(port));
+            gateway = new SqlGateway(properties);
         } else {
-            throw new SqlClientException("Gateway mode is not supported yet.");
+            throw new IllegalArgumentException("Currently sql client doesn't support remote mode.");
+        }
+
+        final Executor executor = new LocalExecutor(socketAddress, defaultContext.getFlinkConfig());
+
+        try {
+            // add shutdown hook
+            Runtime.getRuntime().addShutdownHook(new EmbeddedShutdownThread(executor, gateway));
+            // open a new session
+            executor.open(options.getSessionId());
+            // do the actual work
+            openCli(executor, defaultContext.getDependencies());
+        } finally {
+            executor.close();
         }
     }
 
@@ -105,7 +123,7 @@ public class SqlClient {
      *
      * @param executor executor
      */
-    private void openCli(Executor executor) {
+    private void openCli(Executor executor, List<URL> dependencies) {
         Path historyFilePath;
         if (options.getHistoryFilePath() != null) {
             historyFilePath = Paths.get(options.getHistoryFilePath());
@@ -114,6 +132,11 @@ public class SqlClient {
                     Paths.get(
                             System.getProperty("user.home"),
                             SystemUtils.IS_OS_WINDOWS ? "flink-sql-history" : ".flink-sql-history");
+        }
+
+        // add necessary dependencies
+        for (URL dependency : dependencies) {
+            executor.addJar(dependency);
         }
 
         boolean hasSqlFile = options.getSqlFile() != null;
@@ -214,16 +237,19 @@ public class SqlClient {
     private static class EmbeddedShutdownThread extends Thread {
 
         private final Executor executor;
+        private final Optional<SqlGateway> gateway;
 
-        public EmbeddedShutdownThread(Executor executor) {
+        public EmbeddedShutdownThread(Executor executor, @Nullable SqlGateway gateway) {
             this.executor = executor;
+            this.gateway = Optional.ofNullable(gateway);
         }
 
         @Override
         public void run() {
             // Shutdown the executor
             System.out.println("\nShutting down the session...");
-            executor.closeSession();
+            gateway.ifPresent(SqlGateway::stop);
+            executor.close();
             System.out.println("done.");
         }
     }

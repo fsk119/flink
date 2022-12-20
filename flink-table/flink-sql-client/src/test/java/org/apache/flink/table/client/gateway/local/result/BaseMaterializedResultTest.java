@@ -22,11 +22,14 @@ import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.binary.BinaryRowData;
 import org.apache.flink.table.data.conversion.DataStructureConverter;
 import org.apache.flink.table.data.conversion.DataStructureConverters;
+import org.apache.flink.table.gateway.rest.serde.RowDataInfo;
 import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
 import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.types.Row;
+import org.apache.flink.types.RowKind;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -44,10 +47,18 @@ class BaseMaterializedResultTest {
     }
 
     static void assertRowEquals(
-            List<Row> expected,
-            List<RowData> actual,
-            DataStructureConverter<RowData, Row> converter) {
-        assertThat(actual.stream().map(converter::toExternalOrNull).collect(Collectors.toList()))
-                .isEqualTo(expected);
+            List<Row> expected, List<RowDataInfo> actual, RowDataInfoConverter converter) {
+        assertThat(expected.stream().map(converter::convert).collect(Collectors.toList()))
+                .isEqualTo(actual);
+    }
+
+    static RowDataInfo toRowDataInfo(Object... values) {
+        return new RowDataInfo(RowKind.INSERT, Arrays.asList(values));
+    }
+
+    @FunctionalInterface
+    interface RowDataInfoConverter {
+
+        RowDataInfo convert(Row row);
     }
 }

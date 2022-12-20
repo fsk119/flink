@@ -18,11 +18,11 @@
 
 package org.apache.flink.table.client.cli;
 
-import org.apache.flink.table.client.gateway.Executor;
-import org.apache.flink.table.client.gateway.ResultDescriptor;
+import org.apache.flink.table.api.internal.StaticResultProvider;
 import org.apache.flink.table.client.gateway.SqlExecutionException;
 import org.apache.flink.table.client.gateway.TypedResult;
-import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.client.gateway.local.result.ChangelogResult;
+import org.apache.flink.table.gateway.rest.serde.RowDataInfo;
 import org.apache.flink.table.utils.print.PrintStyle;
 import org.apache.flink.table.utils.print.TableauStyle;
 import org.apache.flink.util.concurrent.ExecutorThreadFactory;
@@ -30,6 +30,7 @@ import org.apache.flink.util.concurrent.ExecutorThreadFactory;
 import org.jline.terminal.Terminal;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
@@ -37,22 +38,18 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 /** Print result in tableau mode. */
 public class CliTableauResultView implements AutoCloseable {
 
     private final Terminal terminal;
-    private final Executor sqlExecutor;
-    private final ResultDescriptor resultDescriptor;
+    private final ChangelogResult result;
     private final ExecutorService displayResultExecutorService;
 
-    public CliTableauResultView(
-            final Terminal terminal,
-            final Executor sqlExecutor,
-            final ResultDescriptor resultDescriptor) {
+    public CliTableauResultView(final Terminal terminal, final ChangelogResult result) {
         this.terminal = terminal;
-        this.sqlExecutor = sqlExecutor;
-        this.resultDescriptor = resultDescriptor;
+        this.result = result;
         this.displayResultExecutorService =
                 Executors.newSingleThreadExecutor(
                         new ExecutorThreadFactory("CliTableauResultView"));
@@ -63,7 +60,7 @@ public class CliTableauResultView implements AutoCloseable {
         Future<?> resultFuture =
                 displayResultExecutorService.submit(
                         () -> {
-                            if (resultDescriptor.isStreamingMode()) {
+                            if (result.isStreamingMode()) {
                                 printStreamingResults(receivedRowCount);
                             } else {
                                 printBatchResults(receivedRowCount);
@@ -109,32 +106,38 @@ public class CliTableauResultView implements AutoCloseable {
     private void checkAndCleanUpQuery(boolean cleanUpQuery) {
         if (cleanUpQuery) {
             try {
-                sqlExecutor.cancelQuery(resultDescriptor.getResultId());
-            } catch (SqlExecutionException e) {
+                result.close();
+            } catch (Exception e) {
                 // ignore further exceptions
             }
         }
     }
 
     private void printBatchResults(AtomicInteger receivedRowCount) {
-        final List<RowData> resultRows = waitBatchResults();
+        final List<RowDataInfo> resultRows = waitBatchResults();
         receivedRowCount.addAndGet(resultRows.size());
         TableauStyle style =
                 PrintStyle.tableauWithDataInferredColumnWidths(
-                        resultDescriptor.getResultSchema(),
-                        resultDescriptor.getRowDataStringConverter(),
+                        result.getResultSchema(),
+                        StaticResultProvider.SIMPLE_ROW_DATA_TO_STRING_CONVERTER,
                         PrintStyle.DEFAULT_MAX_COLUMN_WIDTH,
                         false,
                         false);
-        style.print(resultRows.iterator(), terminal.writer());
+
+        style.print(
+                resultRows.stream()
+                        .map(RowDataInfo::toRowData)
+                        .collect(Collectors.toList())
+                        .iterator(),
+                terminal.writer());
     }
 
     private void printStreamingResults(AtomicInteger receivedRowCount) {
         TableauStyle style =
                 PrintStyle.tableauWithTypeInferredColumnWidths(
-                        resultDescriptor.getResultSchema(),
-                        resultDescriptor.getRowDataStringConverter(),
-                        resultDescriptor.maxColumnWidth(),
+                        result.getResultSchema(),
+                        StaticResultProvider.SIMPLE_ROW_DATA_TO_STRING_CONVERTER,
+                        result.maxColumnWidth(),
                         false,
                         true);
 
@@ -145,10 +148,9 @@ public class CliTableauResultView implements AutoCloseable {
         terminal.flush();
 
         while (true) {
-            final TypedResult<List<RowData>> result =
-                    sqlExecutor.retrieveResultChanges(resultDescriptor.getResultId());
+            final TypedResult<List<RowDataInfo>> rows = result.retrieveChanges();
 
-            switch (result.getType()) {
+            switch (rows.getType()) {
                 case EMPTY:
                     try {
                         // prevent busy loop
@@ -172,33 +174,37 @@ public class CliTableauResultView implements AutoCloseable {
                     terminal.flush();
                     return;
                 case PAYLOAD:
-                    List<RowData> changes = result.getPayload();
-                    for (RowData change : changes) {
-                        style.printTableauRow(style.rowFieldsToString(change), terminal.writer());
+                    List<RowDataInfo> changes = rows.getPayload();
+                    for (RowDataInfo change : changes) {
+                        style.printTableauRow(
+                                Arrays.asList(
+                                                change.getRowKind().shortString(),
+                                                change.toStringifiedFields())
+                                        .toArray(new String[0]),
+                                terminal.writer());
                         receivedRowCount.incrementAndGet();
                     }
                     break;
                 default:
-                    throw new SqlExecutionException("Unknown result type: " + result.getType());
+                    throw new SqlExecutionException("Unknown result type: " + rows.getType());
             }
         }
     }
 
-    private List<RowData> waitBatchResults() {
-        List<RowData> resultRows = new ArrayList<>();
+    private List<RowDataInfo> waitBatchResults() {
+        List<RowDataInfo> resultRows = new ArrayList<>();
         do {
             try {
                 Thread.sleep(50);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
-            TypedResult<List<RowData>> result =
-                    sqlExecutor.retrieveResultChanges(resultDescriptor.getResultId());
+            TypedResult<List<RowDataInfo>> rows = result.retrieveChanges();
 
-            if (result.getType() == TypedResult.ResultType.EOS) {
+            if (rows.getType() == TypedResult.ResultType.EOS) {
                 break;
-            } else if (result.getType() == TypedResult.ResultType.PAYLOAD) {
-                resultRows.addAll(result.getPayload());
+            } else if (rows.getType() == TypedResult.ResultType.PAYLOAD) {
+                resultRows.addAll(rows.getPayload());
             }
         } while (true);
 

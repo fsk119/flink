@@ -79,8 +79,8 @@ public class ResultInfoDeserializer extends StdDeserializer<ResultInfo> {
                         .map(col -> TO_ROWDATA_CONVERTERS.createConverter(col.getLogicalType()))
                         .collect(Collectors.toList());
         List<RowDataInfo> rows = new ArrayList<>();
-        for (int i = 0; i < jsonRows.length; i++) {
-            rows.add(deserializeRowDataInfoWithJsonFormat(parser, node, converters));
+        for (JsonNode jsonRow : jsonRows) {
+            rows.add(deserializeRowDataInfoWithJsonFormat(parser, jsonRow, converters));
         }
         return rows;
     }

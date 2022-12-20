@@ -18,14 +18,14 @@
 
 package org.apache.flink.table.client.gateway.local;
 
-import org.apache.flink.client.cli.DefaultCLI;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ConfigOptions;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.sql.parser.hive.ddl.SqlCreateHiveTable;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.Schema;
-import org.apache.flink.table.api.TableResult;
+import org.apache.flink.table.api.SqlParserEOFException;
 import org.apache.flink.table.catalog.Catalog;
 import org.apache.flink.table.catalog.CatalogDatabaseImpl;
 import org.apache.flink.table.catalog.CatalogTable;
@@ -43,19 +43,27 @@ import org.apache.flink.table.catalog.hive.HiveCatalog;
 import org.apache.flink.table.catalog.hive.HiveTestUtils;
 import org.apache.flink.table.catalog.hive.factories.HiveCatalogFactory;
 import org.apache.flink.table.catalog.hive.factories.HiveCatalogFactoryOptions;
+import org.apache.flink.table.client.gateway.ClientResult;
 import org.apache.flink.table.client.gateway.Executor;
-import org.apache.flink.table.client.gateway.context.DefaultContext;
+import org.apache.flink.table.client.gateway.SqlExecutionException;
 import org.apache.flink.table.connector.source.DynamicTableSource;
 import org.apache.flink.table.factories.CatalogFactory;
 import org.apache.flink.table.factories.DynamicTableSourceFactory;
 import org.apache.flink.table.factories.FactoryUtil;
-import org.apache.flink.table.operations.Operation;
-import org.apache.flink.table.operations.QueryOperation;
+import org.apache.flink.table.gateway.api.SqlGatewayService;
+import org.apache.flink.table.gateway.api.operation.OperationHandle;
+import org.apache.flink.table.gateway.api.results.ResultSet;
+import org.apache.flink.table.gateway.api.session.SessionEnvironment;
+import org.apache.flink.table.gateway.api.session.SessionHandle;
+import org.apache.flink.table.gateway.rest.serde.RowDataInfo;
+import org.apache.flink.table.gateway.service.utils.SqlGatewayServiceExtension;
 import org.apache.flink.table.types.DataType;
-import org.apache.flink.types.Row;
+import org.apache.flink.types.RowKind;
 import org.apache.flink.util.CollectionUtil;
 
+import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -71,6 +79,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /** Dependency tests for {@link LocalExecutor}. Mainly for testing classloading of dependencies. */
 class DependencyTest {
+
+    @RegisterExtension
+    public static final SqlGatewayServiceExtension SQL_GATEWAY_SERVICE_EXTENSION =
+            new SqlGatewayServiceExtension();
 
     public static final String CONNECTOR_TYPE_VALUE = "test-connector";
     public static final String TEST_PROPERTY = "test-property";
@@ -98,10 +110,9 @@ class DependencyTest {
 
     @Test
     void testTableFactoryDiscovery() throws Exception {
-        final LocalExecutor executor = createLocalExecutor();
+        final TestExecutor executor = createExecutor();
         try {
-            final TableResult tableResult =
-                    executeSql(executor, SESSION_ID, "DESCRIBE TableNumber1");
+            final ClientResult tableResult = executor.executeStatement("DESCRIBE TableNumber1");
             assertThat(
                             ResolvedSchema.physical(
                                     new String[] {
@@ -115,58 +126,111 @@ class DependencyTest {
                                         DataTypes.STRING(),
                                         DataTypes.STRING()
                                     }))
-                    .isEqualTo(tableResult.getResolvedSchema());
-            List<Row> schemaData =
+                    .isEqualTo(tableResult.getResultSchema());
+            List<RowDataInfo> schemaData =
                     Arrays.asList(
-                            Row.of("IntegerField1", "INT", true, null, null, null),
-                            Row.of("StringField1", "STRING", true, null, null, null),
-                            Row.of(
+                            toRowDataInfo("IntegerField1", "INT", true, null, null, null),
+                            toRowDataInfo("StringField1", "STRING", true, null, null, null),
+                            toRowDataInfo(
                                     "rowtimeField",
                                     "TIMESTAMP(3) *ROWTIME*",
                                     true,
                                     null,
                                     null,
                                     "`rowtimeField`"));
-            assertThat(CollectionUtil.iteratorToList(tableResult.collect())).isEqualTo(schemaData);
+            assertThat(CollectionUtil.iteratorToList(tableResult)).isEqualTo(schemaData);
         } finally {
-            executor.closeSession();
+            executor.close();
         }
+    }
+
+    private RowDataInfo toRowDataInfo(Object... values) {
+        return new RowDataInfo(RowKind.INSERT, Arrays.asList(values));
     }
 
     @Test
     void testSqlParseWithUserClassLoader() throws Exception {
-        final LocalExecutor executor = createLocalExecutor();
+        final TestExecutor executor = createExecutor();
         try {
-            Operation operation =
-                    executor.parseStatement("SELECT IntegerField1, StringField1 FROM TableNumber1");
+            ClientResult clientResult =
+                    executor.executeStatement(
+                            "SELECT IntegerField1, StringField1 FROM TableNumber1");
 
-            assertThat(operation).isInstanceOf(QueryOperation.class);
+            assertThat(clientResult.isQueryResult()).isEqualTo(true);
         } finally {
-            executor.closeSession();
+            executor.close();
         }
     }
 
-    private LocalExecutor createLocalExecutor() throws Exception {
-        // create default context
-        DefaultContext defaultContext =
-                new DefaultContext(
-                        Collections.emptyList(),
-                        new Configuration(),
-                        Collections.singletonList(new DefaultCLI()));
-        LocalExecutor executor = new LocalExecutor(defaultContext);
-        executor.openSession(SESSION_ID);
+    private TestExecutor createExecutor() throws Exception {
+        TestExecutor executor = new TestExecutor();
+        executor.open(SESSION_ID);
         for (String line : INIT_SQL) {
-            executor.executeOperation(executor.parseStatement(line));
+            executor.executeStatement(line);
         }
         return executor;
     }
 
-    private TableResult executeSql(Executor executor, String sessionId, String sql) {
-        Operation operation = executor.parseStatement(sql);
-        return executor.executeOperation(operation);
+    private ClientResult executeSql(Executor executor, String sessionId, String sql) {
+        return executor.executeStatement(sql);
     }
 
     // --------------------------------------------------------------------------------------------
+
+    private static class TestExecutor implements Executor {
+
+        private final SqlGatewayService service = SQL_GATEWAY_SERVICE_EXTENSION.getService();
+        private SessionHandle sessionHandle;
+
+        @Override
+        public void open(@Nullable String sessionId) throws SqlExecutionException {
+            sessionHandle = service.openSession(SessionEnvironment.newBuilder().build());
+        }
+
+        @Override
+        public void close() throws SqlExecutionException {
+            service.closeSession(sessionHandle);
+        }
+
+        @Override
+        public ReadableConfig getSessionConfig() throws SqlExecutionException {
+            return Configuration.fromMap(service.getSessionConfig(sessionHandle));
+        }
+
+        @Override
+        public void resetSessionProperties() throws SqlExecutionException {}
+
+        @Override
+        public void resetSessionProperty(String key) throws SqlExecutionException {}
+
+        @Override
+        public void setSessionProperty(String key, String value) throws SqlExecutionException {}
+
+        @Override
+        public ClientResult executeStatement(String statement)
+                throws SqlExecutionException, SqlParserEOFException {
+            try {
+                OperationHandle operationHandle =
+                        service.executeStatement(sessionHandle, statement, 0, new Configuration());
+                SQL_GATEWAY_SERVICE_EXTENSION
+                        .getSessionManager()
+                        .getSession(sessionHandle)
+                        .getOperationManager()
+                        .awaitOperationTermination(operationHandle);
+                ResultSet resultSet =
+                        service.fetchResults(sessionHandle, operationHandle, 0L, Integer.MAX_VALUE);
+                // TODO: fix this when every thing works
+                return null;
+            } catch (Exception e) {
+                throw new SqlExecutionException("failed to execute statement.", e);
+            }
+        }
+
+        @Override
+        public List<String> completeStatement(String statement, int position) {
+            throw new UnsupportedOperationException();
+        }
+    }
 
     /** Table source that can be discovered if classloading is correct. */
     public static class TestTableSourceFactory implements DynamicTableSourceFactory {

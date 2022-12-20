@@ -146,7 +146,7 @@ class SqlGatewayRestEndpointStatementITCase extends AbstractSqlGatewayStatementI
                 fetchResults(sessionHandle, operationHandle, 0L);
 
         ResultInfo result = fetchResultsResponseBody.getResults();
-        String resultType = fetchResultsResponseBody.getResultType();
+        String resultType = fetchResultsResponseBody.getResultType().name();
         assertThat(result).isNotNull();
         assertThat(
                         Arrays.asList(

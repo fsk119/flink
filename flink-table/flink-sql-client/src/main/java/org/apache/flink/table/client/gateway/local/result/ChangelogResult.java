@@ -20,12 +20,14 @@ package org.apache.flink.table.client.gateway.local.result;
 
 import org.apache.flink.table.client.gateway.TypedResult;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.gateway.rest.serde.RowDataInfo;
 
 import java.util.List;
 
 /** A result that is represented as a changelog consisting of insert and delete records. */
 public interface ChangelogResult extends DynamicResult {
 
-    /** Retrieves the available result records. */
-    TypedResult<List<RowData>> retrieveChanges();
+    /** Retrieves the available result records.
+     * @return*/
+    TypedResult<List<RowDataInfo>> retrieveChanges();
 }

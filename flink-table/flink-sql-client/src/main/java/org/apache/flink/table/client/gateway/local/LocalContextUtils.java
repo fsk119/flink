@@ -19,7 +19,6 @@
 package org.apache.flink.table.client.gateway.local;
 
 import org.apache.flink.client.cli.CliFrontend;
-import org.apache.flink.client.cli.CustomCommandLine;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.GlobalConfiguration;
 import org.apache.flink.table.client.SqlClientException;
@@ -31,8 +30,6 @@ import org.apache.flink.util.JarUtils;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import javax.annotation.Nullable;
 
 import java.io.File;
 import java.net.URISyntaxException;
@@ -70,25 +67,10 @@ public class LocalContextUtils {
         // 2. load the global configuration
         Configuration configuration = GlobalConfiguration.loadConfiguration(flinkConfigDir);
 
-        // 3. load the custom command lines
-        List<CustomCommandLine> commandLines =
-                CliFrontend.loadCustomCommandLines(configuration, flinkConfigDir);
-
         configuration.addAll(options.getPythonConfiguration());
         final List<URL> dependencies = discoverDependencies(jars, libDirs);
 
-        return new DefaultContext(dependencies, configuration, commandLines);
-    }
-
-    public static SessionContext buildSessionContext(
-            @Nullable String sessionId, DefaultContext defaultContext) {
-        final SessionContext context;
-        if (sessionId == null) {
-            context = SessionContext.create(defaultContext, DEFAULT_SESSION_ID);
-        } else {
-            context = SessionContext.create(defaultContext, sessionId);
-        }
-        return context;
+        return new DefaultContext(dependencies, configuration);
     }
 
     // --------------------------------------------------------------------------------------------

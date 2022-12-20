@@ -121,7 +121,12 @@ public class ResultInfoSerializer extends StdSerializer<ResultInfo> {
         jsonGenerator.writeStartArray();
         for (int i = 0; i < rowData.getArity(); i++) {
             serializerProvider.defaultSerializeValue(
-                    converters.get(i).convert(OBJECT_MAPPER, null, fieldGetters.get(i)),
+                    converters
+                            .get(i)
+                            .convert(
+                                    OBJECT_MAPPER,
+                                    null,
+                                    fieldGetters.get(i).getFieldOrNull(rowData)),
                     jsonGenerator);
         }
         jsonGenerator.writeEndArray();

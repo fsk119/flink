@@ -18,12 +18,23 @@
 
 package org.apache.flink.table.client.gateway.local.result;
 
+import org.apache.flink.table.catalog.ResolvedSchema;
+import org.apache.flink.table.utils.print.RowDataToStringConverter;
+
 /**
  * A result of a dynamic table program.
  *
  * <p>Note: Make sure to call close() after the result is not needed anymore.
  */
 public interface DynamicResult {
+
+    default ResolvedSchema getResultSchema() {
+        throw new UnsupportedOperationException();
+    }
+
+    default RowDataToStringConverter getRowDataToStringConverter() {
+        throw new UnsupportedOperationException();
+    }
 
     /**
      * Returns whether this result is materialized such that snapshots can be taken or results must
@@ -33,4 +44,16 @@ public interface DynamicResult {
 
     /** Closes the retrieval and all involved threads. */
     void close() throws Exception;
+
+    default boolean isTableauMode() {
+        throw new UnsupportedOperationException();
+    }
+
+    default boolean isStreamingMode() {
+        return true;
+    }
+
+    default int maxColumnWidth() {
+        throw new UnsupportedOperationException();
+    }
 }

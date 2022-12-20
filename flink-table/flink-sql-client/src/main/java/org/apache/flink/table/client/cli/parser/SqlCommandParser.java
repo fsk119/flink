@@ -46,5 +46,5 @@ public interface SqlCommandParser {
      *     statement is "" or ";".
      * @throws SqlExecutionException if any error happen while parsing or validating the statement.
      */
-    Optional<StatementType> parseStatement(String statement) throws SqlExecutionException;
+    StatementType parseStatement(String statement) throws SqlExecutionException;
 }

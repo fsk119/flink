@@ -19,8 +19,7 @@
 package org.apache.flink.table.client.cli;
 
 import org.apache.flink.api.java.tuple.Tuple2;
-import org.apache.flink.table.client.gateway.ResultDescriptor;
-import org.apache.flink.table.client.gateway.SqlExecutionException;
+import org.apache.flink.table.client.gateway.local.result.DynamicResult;
 import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.utils.print.TableauStyle;
 
@@ -54,7 +53,7 @@ public abstract class CliResultView<O extends Enum<O>> extends CliView<O, Void> 
 
     private final RefreshThread refreshThread;
 
-    protected final ResultDescriptor resultDescriptor;
+    protected final DynamicResult result;
     protected final TableauStyle tableauStyle;
     protected final int[] columnWidths;
 
@@ -66,10 +65,9 @@ public abstract class CliResultView<O extends Enum<O>> extends CliView<O, Void> 
 
     protected int selectedRow;
 
-    public CliResultView(
-            CliClient client, ResultDescriptor resultDescriptor, TableauStyle tableauStyle) {
+    public CliResultView(CliClient client, DynamicResult result, TableauStyle tableauStyle) {
         super(client);
-        this.resultDescriptor = resultDescriptor;
+        this.result = result;
         this.tableauStyle = tableauStyle;
         this.columnWidths = tableauStyle.getColumnWidths();
         refreshThread = new RefreshThread();
@@ -149,10 +147,9 @@ public abstract class CliResultView<O extends Enum<O>> extends CliView<O, Void> 
         final CliRowView view =
                 new CliRowView(
                         client,
-                        resultDescriptor.getResultSchema().getColumnNames().toArray(new String[0]),
+                        result.getResultSchema().getColumnNames().toArray(new String[0]),
                         CliUtils.typesToString(
-                                resultDescriptor
-                                        .getResultSchema()
+                                result.getResultSchema()
                                         .getColumnDataTypes()
                                         .toArray(new DataType[0])),
                         getRow(results.get(selectedRow)));
@@ -301,8 +298,8 @@ public abstract class CliResultView<O extends Enum<O>> extends CliView<O, Void> 
                     // the cancellation happens in the refresh thread in order to keep the main
                     // thread
                     // responsive at all times; esp. if the cluster is not available
-                    client.getExecutor().cancelQuery(resultDescriptor.getResultId());
-                } catch (SqlExecutionException e) {
+                    result.close();
+                } catch (Exception e) {
                     // ignore further exceptions
                 }
             }

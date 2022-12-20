@@ -28,7 +28,6 @@ import javax.annotation.Nullable;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Optional;
 
 import static org.apache.flink.core.testutils.FlinkAssertions.anyCauseMatches;
 import static org.apache.flink.table.client.cli.parser.StatementType.BEGIN_STATEMENT_SET;
@@ -56,8 +55,8 @@ public class ClientParserTest {
     @ParameterizedTest
     @MethodSource("positiveCases")
     public void testParseStatement(TestSpec testData) {
-        Optional<StatementType> type = clientParser.parseStatement(testData.statement);
-        assertThat(type.orElse(null)).isEqualTo(testData.type);
+        StatementType type = clientParser.parseStatement(testData.statement);
+        assertThat(type).isEqualTo(testData.type);
     }
 
     @ParameterizedTest

@@ -19,44 +19,25 @@
 package org.apache.flink.table.client.cli;
 
 import org.apache.flink.annotation.VisibleForTesting;
-import org.apache.flink.table.api.TableResult;
-import org.apache.flink.table.api.internal.TableResultInternal;
+import org.apache.flink.api.common.JobID;
+import org.apache.flink.api.common.RuntimeExecutionMode;
+import org.apache.flink.configuration.ReadableConfig;
+import org.apache.flink.table.api.internal.StaticResultProvider;
 import org.apache.flink.table.client.SqlClientException;
-import org.apache.flink.table.client.cli.parser.SqlCommandParserImpl;
+import org.apache.flink.table.client.cli.parser.ClientParser;
 import org.apache.flink.table.client.cli.parser.SqlMultiLineParser;
-import org.apache.flink.table.client.config.ResultMode;
+import org.apache.flink.table.client.cli.parser.StatementType;
 import org.apache.flink.table.client.config.SqlClientOptions;
+import org.apache.flink.table.client.gateway.ClientResult;
 import org.apache.flink.table.client.gateway.Executor;
-import org.apache.flink.table.client.gateway.ResultDescriptor;
 import org.apache.flink.table.client.gateway.SqlExecutionException;
-import org.apache.flink.table.operations.BeginStatementSetOperation;
-import org.apache.flink.table.operations.CreateTableASOperation;
-import org.apache.flink.table.operations.EndStatementSetOperation;
-import org.apache.flink.table.operations.ExplainOperation;
-import org.apache.flink.table.operations.LoadModuleOperation;
+import org.apache.flink.table.client.gateway.local.result.ChangelogCollectResult;
+import org.apache.flink.table.client.gateway.local.result.DynamicResult;
+import org.apache.flink.table.client.gateway.local.result.MaterializedCollectBatchResult;
+import org.apache.flink.table.client.gateway.local.result.MaterializedCollectStreamResult;
+import org.apache.flink.table.client.gateway.local.result.MaterializedResult;
 import org.apache.flink.table.operations.ModifyOperation;
-import org.apache.flink.table.operations.Operation;
-import org.apache.flink.table.operations.QueryOperation;
-import org.apache.flink.table.operations.ShowCreateTableOperation;
-import org.apache.flink.table.operations.ShowCreateViewOperation;
-import org.apache.flink.table.operations.SinkModifyOperation;
-import org.apache.flink.table.operations.StatementSetOperation;
-import org.apache.flink.table.operations.UnloadModuleOperation;
-import org.apache.flink.table.operations.UseOperation;
-import org.apache.flink.table.operations.command.AddJarOperation;
-import org.apache.flink.table.operations.command.ClearOperation;
-import org.apache.flink.table.operations.command.HelpOperation;
-import org.apache.flink.table.operations.command.QuitOperation;
-import org.apache.flink.table.operations.command.RemoveJarOperation;
-import org.apache.flink.table.operations.command.ResetOperation;
-import org.apache.flink.table.operations.command.SetOperation;
-import org.apache.flink.table.operations.command.StopJobOperation;
-import org.apache.flink.table.operations.ddl.AlterOperation;
-import org.apache.flink.table.operations.ddl.CreateOperation;
-import org.apache.flink.table.operations.ddl.DropOperation;
-import org.apache.flink.table.utils.EncodingUtils;
 import org.apache.flink.table.utils.print.PrintStyle;
-import org.apache.flink.util.Preconditions;
 
 import org.jline.reader.EndOfFileException;
 import org.jline.reader.LineReader;
@@ -80,27 +61,15 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
 import java.util.function.Supplier;
 
-import static org.apache.flink.table.api.config.TableConfigOptions.TABLE_DML_SYNC;
-import static org.apache.flink.table.api.internal.TableResultImpl.TABLE_RESULT_OK;
-import static org.apache.flink.table.client.cli.CliStrings.MESSAGE_EXECUTE_STATEMENT;
+import static org.apache.flink.configuration.ExecutionOptions.RUNTIME_MODE;
 import static org.apache.flink.table.client.cli.CliStrings.MESSAGE_FINISH_STATEMENT;
-import static org.apache.flink.table.client.cli.CliStrings.MESSAGE_RESET_KEY;
-import static org.apache.flink.table.client.cli.CliStrings.MESSAGE_SET_KEY;
-import static org.apache.flink.table.client.cli.CliStrings.MESSAGE_STATEMENT_SET_END_CALL_ERROR;
-import static org.apache.flink.table.client.cli.CliStrings.MESSAGE_STATEMENT_SET_SQL_EXECUTION_ERROR;
 import static org.apache.flink.table.client.cli.CliStrings.MESSAGE_STATEMENT_SUBMITTED;
-import static org.apache.flink.table.client.cli.CliStrings.MESSAGE_WAIT_EXECUTE;
-import static org.apache.flink.table.client.config.ResultMode.TABLEAU;
+import static org.apache.flink.table.client.config.ResultMode.CHANGELOG;
+import static org.apache.flink.table.client.config.SqlClientOptions.EXECUTION_MAX_TABLE_RESULT_ROWS;
 import static org.apache.flink.table.client.config.SqlClientOptions.EXECUTION_RESULT_MODE;
-import static org.apache.flink.util.Preconditions.checkState;
 
 /** SQL CLI client. */
 public class CliClient implements AutoCloseable {
@@ -147,7 +116,7 @@ public class CliClient implements AutoCloseable {
         this.executor = executor;
         this.inputTransformer = inputTransformer;
         this.historyFilePath = historyFilePath;
-        this.parser = new SqlMultiLineParser(new SqlCommandParserImpl(executor));
+        this.parser = new SqlMultiLineParser(new ClientParser());
 
         // create prompt
         prompt =
@@ -280,21 +249,15 @@ public class CliClient implements AutoCloseable {
             terminal.writer().append("\n");
             terminal.flush();
 
-            Optional<Operation> parsedOperation = Optional.empty();
+            String line = "";
             try {
                 // read a statement from terminal and parse it
-                String line = lineReader.readLine(prompt, null, inputTransformer, null);
+                line = lineReader.readLine(prompt, null, inputTransformer, null);
                 if (line.trim().isEmpty()) {
                     continue;
                 }
                 // get the parsed operation.
                 // if the command is invalid, the exception caught from parser would be thrown.
-                parsedOperation = parser.getParsedOperation();
-                Preconditions.checkArgument(
-                        line.equals(parser.getCommand()),
-                        String.format(
-                                "This is a bug, please report to the flink community. Statement read[%s] isn't the same as statement parsed[%s]",
-                                line, parser.getCommand()));
             } catch (SqlExecutionException e) {
                 // print the detailed information on about the parse errors in the terminal.
                 printExecutionException(e);
@@ -311,15 +274,14 @@ public class CliClient implements AutoCloseable {
                 throw new SqlClientException("Could not read from command line.", t);
             }
 
-            // no operation available, read next command
-            if (!parsedOperation.isPresent()) {
-                continue;
-            }
-
-            // execute the operation
-            boolean success = executeOperation(parsedOperation.get(), mode);
-            if (exitOnFailure && !success) {
-                return false;
+            StatementType statementType = parser.getStatementType();
+            if (statementType != StatementType.OTHER) {
+                executeCommand(statementType);
+            } else {
+                boolean success = executeStatement(line, mode);
+                if (exitOnFailure && !success) {
+                    return false;
+                }
             }
         }
 
@@ -349,13 +311,97 @@ public class CliClient implements AutoCloseable {
         }
     }
 
-    private boolean executeOperation(Operation operation, ExecutionMode executionMode) {
+    private void executeCommand(StatementType statementType) {
+        switch (statementType) {
+            case QUIT:
+                callQuit();
+                break;
+            case CLEAR:
+                callClear();
+                break;
+            case HELP:
+                callHelp();
+                break;
+            case SET:
+                callSetOrReset(parser.getCommand());
+                break;
+            case RESET:
+                callSetOrReset(parser.getCommand());
+                break;
+            default:
+                throw new IllegalArgumentException(parser.getCommand());
+        }
+    }
+
+    private boolean executeStatement(String statement, ExecutionMode executionMode) {
         try {
             final Thread thread = Thread.currentThread();
             final Terminal.SignalHandler previousHandler =
                     terminal.handle(Terminal.Signal.INT, (signal) -> thread.interrupt());
             try {
-                callOperation(operation, executionMode);
+                if (executionMode == ExecutionMode.INTERACTIVE_EXECUTION
+                        || executionMode == ExecutionMode.NON_INTERACTIVE_EXECUTION) {
+                    ClientResult clientResult = executor.executeStatement(statement);
+
+                    if (clientResult.isQueryResult()) {
+                        DynamicResult result =
+                                createResult(executor.getSessionConfig(), clientResult);
+
+                        if (result.isTableauMode()) {
+                            try (CliTableauResultView tableauResultView =
+                                    new CliTableauResultView(
+                                            terminal, (ChangelogCollectResult) result)) {
+                                tableauResultView.displayResults();
+                            }
+                        } else {
+                            final CliResultView<?> view;
+                            if (result.isMaterialized()) {
+                                view = new CliTableResultView(this, (MaterializedResult) result);
+                            } else {
+                                view =
+                                        new CliChangelogResultView(
+                                                this, (ChangelogCollectResult) result);
+                            }
+
+                            // enter view
+                            view.open();
+
+                            // view left
+                            printInfo(CliStrings.MESSAGE_RESULT_QUIT);
+                        }
+                    } else if (clientResult.getJobID() != null) {
+                        // 1. print job
+                        // TODO: support configuration in the client side
+                        JobID jobID = clientResult.getJobID();
+                        boolean sync = false;
+                        if (sync) {
+                            terminal.writer()
+                                    .println(
+                                            CliStrings.messageInfo(MESSAGE_FINISH_STATEMENT)
+                                                    .toAnsi());
+                        } else {
+                            terminal.writer()
+                                    .println(
+                                            CliStrings.messageInfo(MESSAGE_STATEMENT_SUBMITTED)
+                                                    .toAnsi());
+                            terminal.writer().println(String.format("Job ID: %s\n", jobID));
+                        }
+                        terminal.flush();
+                    } else {
+                        // print tableau if result has content
+                        PrintStyle.tableauWithDataInferredColumnWidths(
+                                        clientResult.getResultSchema(),
+                                        StaticResultProvider.SIMPLE_ROW_DATA_TO_STRING_CONVERTER,
+                                        Integer.MAX_VALUE,
+                                        true,
+                                        false)
+                                .print(clientResult.toRowDataIterator(), terminal.writer());
+                    }
+
+                } else if (executionMode == ExecutionMode.INITIALIZATION) {
+                    throw new UnsupportedOperationException();
+                }
+
             } finally {
                 terminal.handle(Terminal.Signal.INT, previousHandler);
             }
@@ -366,107 +412,31 @@ public class CliClient implements AutoCloseable {
         return true;
     }
 
-    private void validate(Operation operation, ExecutionMode executionMode) {
-        if (executionMode.equals(ExecutionMode.INITIALIZATION)) {
-            if (!(operation instanceof SetOperation)
-                    && !(operation instanceof ResetOperation)
-                    && !(operation instanceof CreateOperation)
-                    && !(operation instanceof DropOperation)
-                    && !(operation instanceof UseOperation)
-                    && !(operation instanceof AlterOperation)
-                    && !(operation instanceof LoadModuleOperation)
-                    && !(operation instanceof UnloadModuleOperation)
-                    && !(operation instanceof AddJarOperation)
-                    && !(operation instanceof RemoveJarOperation)) {
-                throw new SqlExecutionException(
-                        "Unsupported operation in sql init file: " + operation.asSummaryString());
-            }
-        } else if (executionMode.equals(ExecutionMode.NON_INTERACTIVE_EXECUTION)) {
-            ResultMode mode = executor.getSessionConfig().get(EXECUTION_RESULT_MODE);
-            if (operation instanceof QueryOperation && !mode.equals(TABLEAU)) {
+    public DynamicResult createResult(ReadableConfig config, ClientResult tableResult) {
+        // validate
+        if (config.get(EXECUTION_RESULT_MODE).equals(CHANGELOG)
+                && config.get(RUNTIME_MODE).equals(RuntimeExecutionMode.BATCH)) {
+            throw new SqlExecutionException(
+                    "Results of batch queries can only be served in table or tableau mode.");
+        }
+
+        switch (config.get(EXECUTION_RESULT_MODE)) {
+            case CHANGELOG:
+            case TABLEAU:
+                return new ChangelogCollectResult(tableResult);
+            case TABLE:
+                Integer maxRows = config.get(EXECUTION_MAX_TABLE_RESULT_ROWS);
+                if (config.get(RUNTIME_MODE).equals(RuntimeExecutionMode.STREAMING)) {
+                    return new MaterializedCollectStreamResult(tableResult, maxRows);
+                } else {
+                    return new MaterializedCollectBatchResult(tableResult, maxRows);
+                }
+            default:
                 throw new SqlExecutionException(
                         String.format(
-                                "In non-interactive mode, it only supports to use %s as value of %s when execute query. Please add 'SET %s=%s;' in the sql file.",
-                                TABLEAU,
-                                EXECUTION_RESULT_MODE.key(),
-                                EXECUTION_RESULT_MODE.key(),
-                                TABLEAU));
-            }
+                                "Unknown value '%s' for option '%s'.",
+                                config.get(EXECUTION_RESULT_MODE), EXECUTION_RESULT_MODE.key()));
         }
-
-        // check the current operation is allowed in STATEMENT SET.
-        if (isStatementSetMode) {
-            if (!(operation instanceof SinkModifyOperation
-                    || operation instanceof EndStatementSetOperation
-                    || operation instanceof CreateTableASOperation)) {
-                // It's up to invoker of the executeStatement to determine whether to continue
-                // execution
-                throw new SqlExecutionException(MESSAGE_STATEMENT_SET_SQL_EXECUTION_ERROR);
-            }
-        }
-    }
-
-    private void callOperation(Operation operation, ExecutionMode mode) {
-        validate(operation, mode);
-
-        if (operation instanceof QuitOperation) {
-            // QUIT/EXIT
-            callQuit();
-        } else if (operation instanceof ClearOperation) {
-            // CLEAR
-            callClear();
-        } else if (operation instanceof HelpOperation) {
-            // HELP
-            callHelp();
-        } else if (operation instanceof SetOperation) {
-            // SET
-            callSet((SetOperation) operation);
-        } else if (operation instanceof ResetOperation) {
-            // RESET
-            callReset((ResetOperation) operation);
-        } else if (operation instanceof SinkModifyOperation) {
-            // INSERT INTO/OVERWRITE
-            callInsert((SinkModifyOperation) operation);
-        } else if (operation instanceof QueryOperation) {
-            // SELECT
-            callSelect((QueryOperation) operation);
-        } else if (operation instanceof ExplainOperation) {
-            // EXPLAIN
-            callExplain((ExplainOperation) operation);
-        } else if (operation instanceof BeginStatementSetOperation) {
-            // BEGIN STATEMENT SET
-            callBeginStatementSet();
-        } else if (operation instanceof EndStatementSetOperation) {
-            // END
-            callEndStatementSet();
-        } else if (operation instanceof StatementSetOperation) {
-            // statement set
-            callInserts(((StatementSetOperation) operation).getOperations());
-        } else if (operation instanceof RemoveJarOperation) {
-            // REMOVE JAR
-            callRemoveJar((RemoveJarOperation) operation);
-        } else if (operation instanceof ShowCreateTableOperation) {
-            // SHOW CREATE TABLE
-            callShowCreateTable((ShowCreateTableOperation) operation);
-        } else if (operation instanceof ShowCreateViewOperation) {
-            // SHOW CREATE VIEW
-            callShowCreateView((ShowCreateViewOperation) operation);
-        } else if (operation instanceof CreateTableASOperation) {
-            // CTAS
-            callInsert((CreateTableASOperation) operation);
-        } else if (operation instanceof StopJobOperation) {
-            // STOP JOB
-            callStopJob((StopJobOperation) operation);
-        } else {
-            // fallback to default implementation
-            executeOperation(operation);
-        }
-    }
-
-    private void callRemoveJar(RemoveJarOperation operation) {
-        String jarPath = operation.getPath();
-        executor.removeJar(jarPath);
-        printInfo(CliStrings.MESSAGE_REMOVE_JAR_STATEMENT);
     }
 
     private void callQuit() {
@@ -478,48 +448,30 @@ public class CliClient implements AutoCloseable {
         clearTerminal();
     }
 
-    private void callReset(ResetOperation resetOperation) {
-        // reset all session properties
-        if (!resetOperation.getKey().isPresent()) {
-            executor.resetSessionProperties();
-            printInfo(CliStrings.MESSAGE_RESET);
-        }
-        // reset a session property
-        else {
-            String key = resetOperation.getKey().get();
-            executor.resetSessionProperty(key);
-            printInfo(MESSAGE_RESET_KEY);
-        }
-    }
+    //    private void callReset(String command) {
+    //        // reset all session properties
+    //        if (!resetOperation.getKey().isPresent()) {
+    //            executor.resetSessionProperties();
+    //            printInfo(CliStrings.MESSAGE_RESET);
+    //        }
+    //        // reset a session property
+    //        else {
+    //            String key = resetOperation.getKey().get();
+    //            executor.resetSessionProperty(key);
+    //            printInfo(MESSAGE_RESET_KEY);
+    //        }
+    //    }
 
-    private void callSet(SetOperation setOperation) {
-        // set a property
-        if (setOperation.getKey().isPresent() && setOperation.getValue().isPresent()) {
-            String key = setOperation.getKey().get().trim();
-            String value = setOperation.getValue().get().trim();
-            executor.setSessionProperty(key, value);
-            printInfo(MESSAGE_SET_KEY);
-        }
-        // show all properties
-        else {
-            final Map<String, String> properties = executor.getSessionConfigMap();
-            if (properties.isEmpty()) {
-                terminal.writer()
-                        .println(CliStrings.messageInfo(CliStrings.MESSAGE_EMPTY).toAnsi());
-            } else {
-                List<String> prettyEntries = new ArrayList<>();
-                for (String key : properties.keySet()) {
-                    prettyEntries.add(
-                            String.format(
-                                    "'%s' = '%s'",
-                                    EncodingUtils.escapeSingleQuotes(key),
-                                    EncodingUtils.escapeSingleQuotes(properties.get(key))));
-                }
-                prettyEntries.sort(String::compareTo);
-                prettyEntries.forEach(entry -> terminal.writer().println(entry));
-            }
-            terminal.flush();
-        }
+    private void callSetOrReset(String command) {
+        ClientResult result = executor.executeStatement(command);
+        // print tableau if result has content
+        PrintStyle.tableauWithDataInferredColumnWidths(
+                        result.getResultSchema(),
+                        StaticResultProvider.SIMPLE_ROW_DATA_TO_STRING_CONVERTER,
+                        Integer.MAX_VALUE,
+                        true,
+                        false)
+                .print(result.toRowDataIterator(), terminal.writer());
     }
 
     private void callHelp() {
@@ -527,135 +479,65 @@ public class CliClient implements AutoCloseable {
         terminal.flush();
     }
 
-    private void callSelect(QueryOperation operation) {
-        final ResultDescriptor resultDesc = executor.executeQuery(operation);
+    //    private void callInserts(ClientResult result) {
+    //        printInfo(CliStrings.MESSAGE_SUBMITTING_STATEMENT);
+    //
+    //        boolean sync = executor.getSessionConfig().get(TABLE_DML_SYNC);
+    //        if (sync) {
+    //            printInfo(MESSAGE_WAIT_EXECUTE);
+    //        }
+    //        if (sync) {
+    //
+    // terminal.writer().println(CliStrings.messageInfo(MESSAGE_FINISH_STATEMENT).toAnsi());
+    //        } else {
+    //
+    // terminal.writer().println(CliStrings.messageInfo(MESSAGE_STATEMENT_SUBMITTED).toAnsi());
+    //            terminal.writer()
+    //                    .println(
+    //                            String.format(
+    //                                    "Job ID: %s\n",
+    //                                    cli.getJobID().toString()));
+    //        }
+    //        terminal.flush();
+    //    }
 
-        if (resultDesc.isTableauMode()) {
-            try (CliTableauResultView tableauResultView =
-                    new CliTableauResultView(terminal, executor, resultDesc)) {
-                tableauResultView.displayResults();
-            }
-        } else {
-            final CliResultView<?> view;
-            if (resultDesc.isMaterialized()) {
-                view = new CliTableResultView(this, resultDesc);
-            } else {
-                view = new CliChangelogResultView(this, resultDesc);
-            }
+    //    public void callExplain(ExplainOperation operation) {
+    //        printRawContent(operation);
+    //    }
+    //
+    //    public void callShowCreateTable(ShowCreateTableOperation operation) {
+    //        printRawContent(operation);
+    //    }
+    //
+    //    public void callShowCreateView(ShowCreateViewOperation operation) {
+    //        printRawContent(operation);
+    //    }
 
-            // enter view
-            view.open();
-
-            // view left
-            printInfo(CliStrings.MESSAGE_RESULT_QUIT);
-        }
-    }
-
-    private void callInsert(ModifyOperation operation) {
-        if (isStatementSetMode) {
-            statementSetOperations.add(operation);
-            printInfo(CliStrings.MESSAGE_ADD_STATEMENT_TO_STATEMENT_SET);
-        } else {
-            callInserts(Collections.singletonList(operation));
-        }
-    }
-
-    private void callInserts(List<ModifyOperation> operations) {
-        printInfo(CliStrings.MESSAGE_SUBMITTING_STATEMENT);
-
-        boolean sync = executor.getSessionConfig().get(TABLE_DML_SYNC);
-        if (sync) {
-            printInfo(MESSAGE_WAIT_EXECUTE);
-        }
-        TableResult tableResult = executor.executeModifyOperations(operations);
-        checkState(tableResult.getJobClient().isPresent());
-
-        if (sync) {
-            terminal.writer().println(CliStrings.messageInfo(MESSAGE_FINISH_STATEMENT).toAnsi());
-        } else {
-            terminal.writer().println(CliStrings.messageInfo(MESSAGE_STATEMENT_SUBMITTED).toAnsi());
-            terminal.writer()
-                    .println(
-                            String.format(
-                                    "Job ID: %s\n",
-                                    tableResult.getJobClient().get().getJobID().toString()));
-        }
-        terminal.flush();
-    }
-
-    public void callExplain(ExplainOperation operation) {
-        printRawContent(operation);
-    }
-
-    public void callShowCreateTable(ShowCreateTableOperation operation) {
-        printRawContent(operation);
-    }
-
-    public void callShowCreateView(ShowCreateViewOperation operation) {
-        printRawContent(operation);
-    }
-
-    public void printRawContent(Operation operation) {
-        TableResult tableResult = executor.executeOperation(operation);
-        // show raw content instead of tableau style
-        final String explanation =
-                Objects.requireNonNull(tableResult.collect().next().getField(0)).toString();
-        terminal.writer().println(explanation);
-        terminal.flush();
-    }
-
-    private void callBeginStatementSet() {
-        isStatementSetMode = true;
-        statementSetOperations = new ArrayList<>();
-        printInfo(CliStrings.MESSAGE_BEGIN_STATEMENT_SET);
-    }
-
-    private void callEndStatementSet() {
-        if (isStatementSetMode) {
-            isStatementSetMode = false;
-            if (!statementSetOperations.isEmpty()) {
-                callInserts(statementSetOperations);
-            } else {
-                printInfo(CliStrings.MESSAGE_NO_STATEMENT_IN_STATEMENT_SET);
-            }
-            statementSetOperations = null;
-        } else {
-            throw new SqlExecutionException(MESSAGE_STATEMENT_SET_END_CALL_ERROR);
-        }
-    }
-
-    private void callStopJob(StopJobOperation stopJobOperation) {
-        Optional<String> savepoint =
-                executor.stopJob(
-                        stopJobOperation.getJobId(),
-                        stopJobOperation.isWithSavepoint(),
-                        stopJobOperation.isWithDrain());
-        if (stopJobOperation.isWithSavepoint()) {
-            Preconditions.checkState(savepoint.isPresent());
-            printInfo(
-                    String.format(
-                            CliStrings.MESSAGE_STOP_JOB_WITH_SAVEPOINT_STATEMENT, savepoint.get()));
-        } else {
-            printInfo(CliStrings.MESSAGE_STOP_JOB_STATEMENT);
-        }
-    }
-
-    private void executeOperation(Operation operation) {
-        TableResultInternal result = executor.executeOperation(operation);
-        if (TABLE_RESULT_OK == result) {
-            // print more meaningful message than tableau OK result
-            printInfo(MESSAGE_EXECUTE_STATEMENT);
-        } else {
-            // print tableau if result has content
-            PrintStyle.tableauWithDataInferredColumnWidths(
-                            result.getResolvedSchema(),
-                            result.getRowDataToStringConverter(),
-                            Integer.MAX_VALUE,
-                            true,
-                            false)
-                    .print(result.collectInternal(), terminal.writer());
-        }
-    }
+    //    public void printRawContent(Operation operation) {
+    //        TableResult tableResult = executor.executeOperation(operation);
+    //        // show raw content instead of tableau style
+    //        final String explanation =
+    //                Objects.requireNonNull(tableResult.collect().next().getField(0)).toString();
+    //        terminal.writer().println(explanation);
+    //        terminal.flush();
+    //    }
+    //
+    //    private void executeStatement(Operation operation) {
+    //        TableResultInternal result = executor.executeOperation(operation);
+    //        if (TABLE_RESULT_OK == result) {
+    //            // print more meaningful message than tableau OK result
+    //            printInfo(MESSAGE_EXECUTE_STATEMENT);
+    //        } else {
+    //            // print tableau if result has content
+    //            PrintStyle.tableauWithDataInferredColumnWidths(
+    //                            result.getResolvedSchema(),
+    //                            result.getRowDataToStringConverter(),
+    //                            Integer.MAX_VALUE,
+    //                            true,
+    //                            false)
+    //                    .print(result.collectInternal(), terminal.writer());
+    //        }
+    //    }
 
     // --------------------------------------------------------------------------------------------
 

@@ -29,20 +29,11 @@ import java.io.StringReader;
 import java.util.Iterator;
 import java.util.Optional;
 
-import static org.apache.flink.sql.parser.impl.FlinkSqlParserImplConstants.BEGIN;
-import static org.apache.flink.sql.parser.impl.FlinkSqlParserImplConstants.CREATE;
-import static org.apache.flink.sql.parser.impl.FlinkSqlParserImplConstants.END;
 import static org.apache.flink.sql.parser.impl.FlinkSqlParserImplConstants.EOF;
-import static org.apache.flink.sql.parser.impl.FlinkSqlParserImplConstants.EXPLAIN;
 import static org.apache.flink.sql.parser.impl.FlinkSqlParserImplConstants.IDENTIFIER;
-import static org.apache.flink.sql.parser.impl.FlinkSqlParserImplConstants.JAR;
-import static org.apache.flink.sql.parser.impl.FlinkSqlParserImplConstants.REMOVE;
 import static org.apache.flink.sql.parser.impl.FlinkSqlParserImplConstants.RESET;
-import static org.apache.flink.sql.parser.impl.FlinkSqlParserImplConstants.SELECT;
 import static org.apache.flink.sql.parser.impl.FlinkSqlParserImplConstants.SEMICOLON;
 import static org.apache.flink.sql.parser.impl.FlinkSqlParserImplConstants.SET;
-import static org.apache.flink.sql.parser.impl.FlinkSqlParserImplConstants.SHOW;
-import static org.apache.flink.sql.parser.impl.FlinkSqlParserImplConstants.STATEMENT;
 
 /**
  * ClientParser uses {@link FlinkSqlParserImplTokenManager} to do lexical analysis. It cannot
@@ -59,7 +50,7 @@ public class ClientParser implements SqlCommandParser {
         return Optional.empty();
     }
 
-    public Optional<StatementType> parseStatement(String statement) throws SqlExecutionException {
+    public StatementType parseStatement(String statement) throws SqlExecutionException {
         return getStatementType(new TokenIterator(statement.trim()));
     }
 
@@ -105,7 +96,7 @@ public class ClientParser implements SqlCommandParser {
         }
     }
 
-    private Optional<StatementType> getStatementType(TokenIterator tokens) {
+    private StatementType getStatementType(TokenIterator tokens) {
         if (!tokens.hasNext()) {
             continueReadInput();
         }
@@ -120,42 +111,12 @@ public class ClientParser implements SqlCommandParser {
         } else if (firstToken.kind == RESET) {
             // RESET
             type = StatementType.RESET;
-        } else if (firstToken.kind == EXPLAIN) {
-            // EXPLAIN
-            type = StatementType.EXPLAIN;
-        } else if (firstToken.kind == SHOW) {
-            // SHOW CREATE
-            type =
-                    tokenMatches(tokens.scan(1), CREATE)
-                            ? StatementType.SHOW_CREATE
-                            : StatementType.OTHER;
-        } else if (firstToken.kind == BEGIN) {
-            // BEGIN STATEMENT SET
-            type =
-                    tokenMatches(tokens.scan(1), STATEMENT) && tokenMatches(tokens.scan(2), SET)
-                            ? StatementType.BEGIN_STATEMENT_SET
-                            : StatementType.OTHER;
-        } else if (firstToken.kind == END) {
-            // END
-            type =
-                    tokenMatches(tokens.scan(1), SEMICOLON)
-                            ? StatementType.END
-                            : StatementType.OTHER;
-        } else if (firstToken.kind == REMOVE) {
-            // REMOVE JAR
-            type =
-                    tokenMatches(tokens.scan(1), JAR)
-                            ? StatementType.REMOVE_JAR
-                            : StatementType.OTHER;
-        } else if (firstToken.kind == SELECT) {
-            // SELECT
-            type = StatementType.SELECT;
         } else {
             type = StatementType.OTHER;
         }
 
         checkIncompleteStatement(tokens);
-        return Optional.of(type);
+        return type;
     }
 
     private static void continueReadInput() {

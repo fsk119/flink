@@ -19,10 +19,10 @@
 package org.apache.flink.table.client.gateway.local.result;
 
 import org.apache.flink.annotation.VisibleForTesting;
-import org.apache.flink.table.api.internal.TableResultInternal;
+import org.apache.flink.table.client.gateway.ClientResult;
 import org.apache.flink.table.client.gateway.SqlExecutionException;
 import org.apache.flink.table.client.gateway.TypedResult;
-import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.gateway.rest.serde.RowDataInfo;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -56,13 +56,13 @@ public abstract class MaterializedCollectResultBase extends CollectResultBase
      * Materialized table that is continuously updated by inserts and deletes. Deletes at the
      * beginning are lazily cleaned up when the threshold is reached.
      */
-    protected final List<RowData> materializedTable;
+    protected final List<RowDataInfo> materializedTable;
 
     /** Counter for deleted rows to be deleted at the beginning of the materialized table. */
     protected int validRowPosition;
 
     /** Current snapshot of the materialized table. */
-    private final List<RowData> snapshot;
+    private final List<RowDataInfo> snapshot;
 
     /** Page count of the snapshot (always >= 1). */
     private int pageCount;
@@ -74,7 +74,7 @@ public abstract class MaterializedCollectResultBase extends CollectResultBase
     private boolean isLastSnapshot;
 
     public MaterializedCollectResultBase(
-            TableResultInternal tableResult, int maxRowCount, int overcommitThreshold) {
+            ClientResult tableResult, int maxRowCount, int overcommitThreshold) {
         super(tableResult);
 
         if (maxRowCount <= 0) {
@@ -132,7 +132,7 @@ public abstract class MaterializedCollectResultBase extends CollectResultBase
     }
 
     @Override
-    public List<RowData> retrievePage(int page) {
+    public List<RowDataInfo> retrievePage(int page) {
         synchronized (resultLock) {
             if (page <= 0 || page > pageCount) {
                 throw new SqlExecutionException("Invalid page '" + page + "'.");
@@ -156,7 +156,7 @@ public abstract class MaterializedCollectResultBase extends CollectResultBase
     }
 
     @VisibleForTesting
-    protected List<RowData> getMaterializedTable() {
+    protected List<RowDataInfo> getMaterializedTable() {
         return materializedTable;
     }
 }

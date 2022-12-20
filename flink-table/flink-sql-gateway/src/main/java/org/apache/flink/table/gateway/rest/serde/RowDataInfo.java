@@ -25,9 +25,8 @@ import org.apache.flink.types.RowKind;
 import org.apache.flink.util.Preconditions;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
-/** A RowDataInfo info represents a {@link RowData}. */
+/** Info represents a {@link RowData}. */
 @Internal
 public class RowDataInfo {
 
@@ -41,13 +40,21 @@ public class RowDataInfo {
         this.fields = Preconditions.checkNotNull(fields, "fields must not be null.");
     }
 
-    public RowData toRowData() {
-        return GenericRowData.of(rowKind, fields);
+    public RowKind getRowKind() {
+        return rowKind;
     }
 
-    public List<String> toStringifiedFields() {
+    public List<Object> getFields() {
+        return fields;
+    }
+
+    public RowData toRowData() {
+        return GenericRowData.ofKind(rowKind, fields.toArray());
+    }
+
+    public String[] toStringifiedFields() {
         return fields.stream()
                 .map(field -> field == null ? NULL_VALUE : field.toString())
-                .collect(Collectors.toList());
+                .toArray(String[]::new);
     }
 }

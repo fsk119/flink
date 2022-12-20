@@ -18,53 +18,67 @@
 
 package org.apache.flink.table.client.gateway.local;
 
-import org.apache.flink.annotation.VisibleForTesting;
-import org.apache.flink.api.common.JobID;
-import org.apache.flink.client.cli.ClientOptions;
-import org.apache.flink.client.deployment.ClusterClientFactory;
-import org.apache.flink.client.deployment.ClusterClientServiceLoader;
-import org.apache.flink.client.deployment.ClusterDescriptor;
-import org.apache.flink.client.deployment.DefaultClusterClientServiceLoader;
-import org.apache.flink.client.program.ClusterClient;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.ReadableConfig;
-import org.apache.flink.core.execution.SavepointFormatType;
-import org.apache.flink.table.api.TableEnvironment;
-import org.apache.flink.table.api.internal.TableEnvironmentInternal;
-import org.apache.flink.table.api.internal.TableResultInternal;
+import org.apache.flink.runtime.rest.RestClient;
+import org.apache.flink.runtime.rest.messages.EmptyMessageParameters;
+import org.apache.flink.runtime.rest.messages.EmptyRequestBody;
+import org.apache.flink.runtime.rest.messages.MessageHeaders;
+import org.apache.flink.runtime.rest.messages.MessageParameters;
+import org.apache.flink.runtime.rest.messages.RequestBody;
+import org.apache.flink.runtime.rest.messages.ResponseBody;
+import org.apache.flink.table.api.SqlParserEOFException;
+import org.apache.flink.table.catalog.Column;
+import org.apache.flink.table.catalog.ResolvedSchema;
+import org.apache.flink.table.client.SqlClientException;
+import org.apache.flink.table.client.gateway.ClientResult;
 import org.apache.flink.table.client.gateway.Executor;
-import org.apache.flink.table.client.gateway.ResultDescriptor;
 import org.apache.flink.table.client.gateway.SqlExecutionException;
-import org.apache.flink.table.client.gateway.TypedResult;
-import org.apache.flink.table.client.gateway.context.DefaultContext;
 import org.apache.flink.table.client.gateway.context.ExecutionContext;
-import org.apache.flink.table.client.gateway.context.SessionContext;
-import org.apache.flink.table.client.gateway.local.result.ChangelogResult;
-import org.apache.flink.table.client.gateway.local.result.DynamicResult;
-import org.apache.flink.table.client.gateway.local.result.MaterializedResult;
-import org.apache.flink.table.data.RowData;
-import org.apache.flink.table.delegation.Parser;
-import org.apache.flink.table.operations.ModifyOperation;
-import org.apache.flink.table.operations.Operation;
-import org.apache.flink.table.operations.QueryOperation;
-import org.apache.flink.util.FlinkException;
-import org.apache.flink.util.Preconditions;
+import org.apache.flink.table.gateway.api.operation.OperationHandle;
+import org.apache.flink.table.gateway.api.results.ResultSet;
+import org.apache.flink.table.gateway.api.session.SessionHandle;
+import org.apache.flink.table.gateway.rest.header.operation.CloseOperationHeaders;
+import org.apache.flink.table.gateway.rest.header.session.CloseSessionHeaders;
+import org.apache.flink.table.gateway.rest.header.session.GetSessionConfigHeaders;
+import org.apache.flink.table.gateway.rest.header.session.OpenSessionHeaders;
+import org.apache.flink.table.gateway.rest.header.statement.ExecuteStatementHeaders;
+import org.apache.flink.table.gateway.rest.header.statement.FetchResultsHeaders;
+import org.apache.flink.table.gateway.rest.message.operation.OperationMessageParameters;
+import org.apache.flink.table.gateway.rest.message.session.CloseSessionResponseBody;
+import org.apache.flink.table.gateway.rest.message.session.GetSessionConfigResponseBody;
+import org.apache.flink.table.gateway.rest.message.session.OpenSessionRequestBody;
+import org.apache.flink.table.gateway.rest.message.session.OpenSessionResponseBody;
+import org.apache.flink.table.gateway.rest.message.session.SessionMessageParameters;
+import org.apache.flink.table.gateway.rest.message.statement.ExecuteStatementRequestBody;
+import org.apache.flink.table.gateway.rest.message.statement.ExecuteStatementResponseBody;
+import org.apache.flink.table.gateway.rest.message.statement.FetchResultsResponseBody;
+import org.apache.flink.table.gateway.rest.message.statement.FetchResultsTokenParameters;
+import org.apache.flink.table.gateway.rest.serde.ResultInfo;
+import org.apache.flink.table.gateway.rest.serde.RowDataInfo;
+import org.apache.flink.table.types.utils.DataTypeUtils;
+import org.apache.flink.util.CloseableIterator;
+import org.apache.flink.util.ConfigurationException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
 
-import java.time.Duration;
-import java.util.Arrays;
-import java.util.Collections;
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.TimeUnit;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
-import static org.apache.flink.table.client.cli.CliStrings.MESSAGE_SQL_EXECUTION_ERROR;
-import static org.apache.flink.util.Preconditions.checkArgument;
+import static org.apache.flink.table.gateway.rest.handler.session.CloseSessionHandler.CLOSE_MESSAGE;
+import static org.apache.flink.util.Preconditions.checkNotNull;
 
 /**
  * Executor that performs the Flink communication locally. The calls are blocking depending on the
@@ -75,45 +89,78 @@ public class LocalExecutor implements Executor {
     private static final Logger LOG = LoggerFactory.getLogger(LocalExecutor.class);
 
     // result maintenance
-    private final ResultStore resultStore;
-    private final DefaultContext defaultContext;
-    private SessionContext sessionContext;
 
-    private final ClusterClientServiceLoader clusterClientServiceLoader;
+    private final ExecutorService executorService;
+    private final Configuration configuration;
+    private final InetSocketAddress socketAddress;
+
+    private RestClient restClient;
+
+    private SessionHandle sessionHandle;
+    private SessionMessageParameters sessionMessageParametersInstance;
 
     /** Creates a local executor for submitting table programs and retrieving results. */
-    public LocalExecutor(DefaultContext defaultContext) {
-        this.resultStore = new ResultStore();
-        this.defaultContext = defaultContext;
-        this.clusterClientServiceLoader = new DefaultClusterClientServiceLoader();
+    public LocalExecutor(InetSocketAddress socketAddress, Configuration configuration) {
+        this.socketAddress = socketAddress;
+        this.configuration = configuration;
+        this.executorService = Executors.newFixedThreadPool(2);
     }
 
     @Override
-    public void start() {
-        // nothing to do yet
+    public void open(@Nullable String sessionId) throws SqlExecutionException {
+        try {
+            this.restClient = new RestClient(configuration, executorService);
+        } catch (ConfigurationException e) {
+            throw new SqlExecutionException("Failed to create the client.", e);
+        }
+
+        LOG.info("Open session  to {}:{}.", socketAddress.getAddress(), socketAddress.getPort());
+        // Open session to address:port and get the session handle ID
+        OpenSessionRequestBody request =
+                new OpenSessionRequestBody(sessionId, configuration.toMap());
+        try {
+            OpenSessionResponseBody response =
+                    sendRequest(
+                                    OpenSessionHeaders.getInstance(),
+                                    EmptyMessageParameters.getInstance(),
+                                    request)
+                            .get();
+            sessionHandle = new SessionHandle(UUID.fromString(response.getSessionHandle()));
+        } catch (Exception e) {
+            LOG.error(
+                    String.format(
+                            "Failed to open session to %s:%s",
+                            socketAddress.getAddress(), socketAddress.getPort()),
+                    e);
+            throw new SqlClientException(
+                    String.format(
+                            "Failed to open session to %s:%s",
+                            socketAddress.getAddress(), socketAddress.getPort()),
+                    e);
+        }
+        sessionMessageParametersInstance = new SessionMessageParameters(sessionHandle);
     }
 
     @Override
-    public void openSession(@Nullable String sessionId) throws SqlExecutionException {
-        // do nothing
-        sessionContext = LocalContextUtils.buildSessionContext(sessionId, defaultContext);
-    }
+    public void close() throws SqlExecutionException {
+        executorService.shutdownNow();
+        // close session
+        try {
+            CompletableFuture<CloseSessionResponseBody> response =
+                    sendRequest(
+                            CloseSessionHeaders.getInstance(),
+                            sessionMessageParametersInstance,
+                            EmptyRequestBody.getInstance());
 
-    @Override
-    public void closeSession() throws SqlExecutionException {
-        resultStore
-                .getResults()
-                .forEach(
-                        (resultId) -> {
-                            try {
-                                cancelQuery(resultId);
-                            } catch (Throwable t) {
-                                // ignore any throwable to keep the clean up running
-                            }
-                        });
-        // Remove the session's ExecutionContext from contextMap and close it.
-        if (sessionContext != null) {
-            sessionContext.close();
+            if (!response.get().getStatus().equals(CLOSE_MESSAGE)) {
+                LOG.warn("The status of close session response isn't {}.", CLOSE_MESSAGE);
+            }
+        } catch (Throwable t) {
+            LOG.warn(
+                    String.format(
+                            "Unexpected error occurs when closing session %s.", sessionHandle),
+                    t);
+            // ignore any throwable to keep the cleanup running
         }
     }
 
@@ -121,278 +168,224 @@ public class LocalExecutor implements Executor {
      * Get the existed {@link ExecutionContext} from contextMap, or thrown exception if does not
      * exist.
      */
-    @VisibleForTesting
-    protected ExecutionContext getExecutionContext() throws SqlExecutionException {
-        return sessionContext.getExecutionContext();
-    }
-
-    @Override
     public Map<String, String> getSessionConfigMap() throws SqlExecutionException {
-        return sessionContext.getConfigMap();
+        try {
+            CompletableFuture<GetSessionConfigResponseBody> response =
+                    sendRequest(
+                            GetSessionConfigHeaders.getInstance(),
+                            sessionMessageParametersInstance,
+                            EmptyRequestBody.getInstance());
+            return response.get().getProperties();
+        } catch (Exception e) {
+            LOG.error("Failed to get session config.", e);
+            throw new SqlExecutionException("Failed to get session config.", e);
+        }
     }
 
     @Override
     public ReadableConfig getSessionConfig() throws SqlExecutionException {
-        return sessionContext.getReadableConfig();
+        return Configuration.fromMap(getSessionConfigMap());
     }
 
     @Override
-    public void resetSessionProperties() throws SqlExecutionException {
-        SessionContext context = sessionContext;
-        context.reset();
-    }
+    public void resetSessionProperties() throws SqlExecutionException {}
 
     @Override
     public void resetSessionProperty(String key) throws SqlExecutionException {
-        SessionContext context = sessionContext;
-        context.reset(key);
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public void setSessionProperty(String key, String value) throws SqlExecutionException {
-        SessionContext context = sessionContext;
-        context.set(key, value);
+        throw new UnsupportedOperationException();
     }
 
     @Override
-    public Operation parseStatement(String statement) throws SqlExecutionException {
-        final ExecutionContext context = getExecutionContext();
-        final TableEnvironment tableEnv = context.getTableEnvironment();
-        Parser parser = ((TableEnvironmentInternal) tableEnv).getParser();
-
-        List<Operation> operations;
+    public ClientResult executeStatement(String statement)
+            throws SqlExecutionException, SqlParserEOFException {
+        ExecuteStatementRequestBody request = new ExecuteStatementRequestBody(statement, 0L, null);
         try {
-            operations = parser.parse(statement);
-        } catch (Throwable t) {
-            throw new SqlExecutionException("Failed to parse statement: " + statement, t);
+            CompletableFuture<ExecuteStatementResponseBody> executeStatementResponse =
+                    sendRequest(
+                            ExecuteStatementHeaders.getInstance(),
+                            sessionMessageParametersInstance,
+                            request);
+
+            OperationHandle operationHandle =
+                    new OperationHandle(
+                            UUID.fromString(executeStatementResponse.get().getOperationHandle()));
+
+            // TODO: introduce option later
+            FetchResultsResponseBody fetchResultsResponse = fetchWhenResultsReady(operationHandle);
+            ResultInfo firstResult = fetchResultsResponse.getResults();
+
+            return new ClientResult(
+                    checkNotNull(fetchResultsResponse.isQuery()),
+                    ResolvedSchema.of(
+                            fetchResultsResponse.getResults().getColumnInfo().stream()
+                                    .map(
+                                            col ->
+                                                    Column.physical(
+                                                                    col.getName(),
+                                                                    DataTypeUtils
+                                                                            .toInternalDataType(
+                                                                                    col
+                                                                                            .getLogicalType()))
+                                                            .withComment(col.getComment()))
+                                    .collect(Collectors.toList())),
+                    fetchResultsResponse.getJobID().orElse(null),
+                    new RowDataInfoIterator(
+                            operationHandle,
+                            firstResult.getRowDataInfo(),
+                            parseTokenFromUri(fetchResultsResponse.getNextResultUri())));
+
+        } catch (Exception e) {
+            LOG.error("Unexpected error occurs when executing SQL statement.", e);
+            throw new SqlExecutionException(
+                    "Unexpected error occurs when executing SQL statement.", e);
         }
-        if (operations.isEmpty()) {
-            throw new SqlExecutionException("Failed to parse statement: " + statement);
-        }
-        return operations.get(0);
     }
 
     @Override
     public List<String> completeStatement(String statement, int position) {
-        final ExecutionContext context = getExecutionContext();
-        final TableEnvironmentInternal tableEnv =
-                (TableEnvironmentInternal) context.getTableEnvironment();
+        //        final ExecutionContext context = getExecutionContext();
+        //        final TableEnvironmentInternal tableEnv =
+        //                (TableEnvironmentInternal) context.getTableEnvironment();
+        //
+        //        try {
+        //            return Arrays.asList(tableEnv.getParser().getCompletionHints(statement,
+        // position));
+        //        } catch (Throwable t) {
+        //            // catch everything such that the query does not crash the executor
+        //            if (LOG.isDebugEnabled()) {
+        //                LOG.debug("Could not complete statement at " + position + ":" + statement,
+        // t);
+        //            }
+        //            return Collections.emptyList();
+        //        }
+        throw new UnsupportedOperationException("Not implemented.");
+    }
 
-        try {
-            return Arrays.asList(tableEnv.getParser().getCompletionHints(statement, position));
-        } catch (Throwable t) {
-            // catch everything such that the query does not crash the executor
-            if (LOG.isDebugEnabled()) {
-                LOG.debug("Could not complete statement at " + position + ":" + statement, t);
+    // ---------------------------------------------------------------------------------------------
+
+    private class RowDataInfoIterator implements CloseableIterator<RowDataInfo> {
+
+        private final OperationHandle operationHandle;
+        private Iterator<RowDataInfo> currentBuffer;
+        private Long nextToken;
+
+        public RowDataInfoIterator(
+                OperationHandle operationHandle, List<RowDataInfo> buffer, Long nextToken) {
+            this.operationHandle = operationHandle;
+            this.currentBuffer = buffer.iterator();
+            this.nextToken = nextToken;
+        }
+
+        @Override
+        public void close() throws Exception {
+            sendRequest(
+                    CloseOperationHeaders.getInstance(),
+                    new OperationMessageParameters(sessionHandle, operationHandle),
+                    EmptyRequestBody.getInstance());
+        }
+
+        @Override
+        public boolean hasNext() {
+            if (!currentBuffer.hasNext()) {
+                while (nextToken != null && !currentBuffer.hasNext()) {
+                    FetchResultsResponseBody fetchResultsResponseBody =
+                            fetchResults(operationHandle, nextToken);
+                    nextToken = parseTokenFromUri(fetchResultsResponseBody.getNextResultUri());
+                    currentBuffer =
+                            fetchResultsResponseBody.getResults().getRowDataInfo().iterator();
+                }
             }
-            return Collections.emptyList();
+            return currentBuffer.hasNext();
+        }
+
+        @Override
+        public RowDataInfo next() {
+            return currentBuffer.next();
         }
     }
 
-    @Override
-    public TableResultInternal executeOperation(Operation operation) throws SqlExecutionException {
-        final ExecutionContext context = getExecutionContext();
-        final TableEnvironmentInternal tEnv =
-                (TableEnvironmentInternal) context.getTableEnvironment();
+    private <
+                    M extends MessageHeaders<R, P, U>,
+                    U extends MessageParameters,
+                    R extends RequestBody,
+                    P extends ResponseBody>
+            CompletableFuture<P> sendRequest(M messageHeaders, U messageParameters, R request)
+                    throws IOException {
+        return restClient.sendRequest(
+                socketAddress.getHostName(),
+                socketAddress.getPort(),
+                messageHeaders,
+                messageParameters,
+                request);
+    }
+
+    @SuppressWarnings("BusyWait")
+    private FetchResultsResponseBody fetchWhenResultsReady(OperationHandle operationHandle)
+            throws SqlClientException {
+        Function<FetchResultsResponseBody, Boolean> wait =
+                response -> response.getResultType().equals(ResultSet.ResultType.NOT_READY);
+        FetchResultsResponseBody response = fetchResults(operationHandle);
+
+        while (wait.apply(response)) {
+            try {
+                Thread.sleep(10L);
+            } catch (InterruptedException e) {
+                throw new SqlClientException(e);
+            }
+            response = fetchResults(operationHandle);
+        }
+
+        if (wait.apply(response)) {
+            LOG.error(
+                    "Failed to fetch results within timeout. OperationHandle ID: {}.",
+                    operationHandle);
+            throw new SqlClientException(
+                    String.format(
+                            "Failed to fetch results within timeout. OperationHandle ID: %s.",
+                            operationHandle));
+        }
+
+        return response;
+    }
+
+    private FetchResultsResponseBody fetchResults(OperationHandle operationHandle) {
+        return fetchResults(operationHandle, 0L);
+    }
+
+    public FetchResultsResponseBody fetchResults(OperationHandle operationHandle, long token)
+            throws SqlClientException {
+        FetchResultsTokenParameters fetchResultsTokenParameters =
+                new FetchResultsTokenParameters(sessionHandle, operationHandle, token);
         try {
-            return tEnv.executeInternal(operation);
-        } catch (Throwable t) {
-            throw new SqlExecutionException(MESSAGE_SQL_EXECUTION_ERROR, t);
-        }
-    }
-
-    @Override
-    public TableResultInternal executeModifyOperations(List<ModifyOperation> operations)
-            throws SqlExecutionException {
-        final ExecutionContext context = getExecutionContext();
-        final TableEnvironmentInternal tEnv =
-                (TableEnvironmentInternal) context.getTableEnvironment();
-        try {
-            return tEnv.executeInternal(operations);
-        } catch (Throwable t) {
-            throw new SqlExecutionException(MESSAGE_SQL_EXECUTION_ERROR, t);
-        }
-    }
-
-    @Override
-    public ResultDescriptor executeQuery(QueryOperation query) throws SqlExecutionException {
-        final TableResultInternal tableResult = executeOperation(query);
-        final SessionContext context = sessionContext;
-        final ReadableConfig config = context.getReadableConfig();
-        final DynamicResult result = resultStore.createResult(config, tableResult);
-        checkArgument(tableResult.getJobClient().isPresent());
-        String jobId = tableResult.getJobClient().get().getJobID().toString();
-        // store the result under the JobID
-        resultStore.storeResult(jobId, result);
-        return new ResultDescriptor(
-                jobId,
-                tableResult.getResolvedSchema(),
-                result.isMaterialized(),
-                config,
-                tableResult.getRowDataToStringConverter());
-    }
-
-    @Override
-    public TypedResult<List<RowData>> retrieveResultChanges(String resultId)
-            throws SqlExecutionException {
-        final DynamicResult result = resultStore.getResult(resultId);
-        if (result == null) {
-            throw new SqlExecutionException(
-                    "Could not find a result with result identifier '" + resultId + "'.");
-        }
-        if (result.isMaterialized()) {
-            throw new SqlExecutionException("Invalid result retrieval mode.");
-        }
-        return ((ChangelogResult) result).retrieveChanges();
-    }
-
-    @Override
-    public TypedResult<Integer> snapshotResult(String resultId, int pageSize)
-            throws SqlExecutionException {
-        final DynamicResult result = resultStore.getResult(resultId);
-        if (result == null) {
-            throw new SqlExecutionException(
-                    "Could not find a result with result identifier '" + resultId + "'.");
-        }
-        if (!result.isMaterialized()) {
-            throw new SqlExecutionException("Invalid result retrieval mode.");
-        }
-        return ((MaterializedResult) result).snapshot(pageSize);
-    }
-
-    @Override
-    public List<RowData> retrieveResultPage(String resultId, int page)
-            throws SqlExecutionException {
-        final DynamicResult result = resultStore.getResult(resultId);
-        if (result == null) {
-            throw new SqlExecutionException(
-                    "Could not find a result with result identifier '" + resultId + "'.");
-        }
-        if (!result.isMaterialized()) {
-            throw new SqlExecutionException("Invalid result retrieval mode.");
-        }
-        return ((MaterializedResult) result).retrievePage(page);
-    }
-
-    @Override
-    public void cancelQuery(String resultId) throws SqlExecutionException {
-        final DynamicResult result = resultStore.getResult(resultId);
-        if (result == null) {
-            throw new SqlExecutionException(
-                    "Could not find a result with result identifier '" + resultId + "'.");
-        }
-
-        // stop retrieval and remove the result
-        LOG.info("Cancelling job {} and result retrieval.", resultId);
-        try {
-            // this operator will also stop flink job
-            result.close();
-        } catch (Throwable t) {
-            throw new SqlExecutionException("Could not cancel the query execution", t);
-        }
-        resultStore.removeResult(resultId);
-    }
-
-    @Override
-    public void removeJar(String jarUrl) {
-        final SessionContext context = sessionContext;
-        context.removeJar(jarUrl);
-    }
-
-    @Override
-    public Optional<String> stopJob(String jobId, boolean isWithSavepoint, boolean isWithDrain)
-            throws SqlExecutionException {
-        Duration clientTimeout = getSessionConfig().get(ClientOptions.CLIENT_TIMEOUT);
-        try {
-            return runClusterAction(
-                    clusterClient -> {
-                        if (isWithSavepoint) {
-                            // blocking get savepoint path
-                            try {
-                                String savepoint =
-                                        clusterClient
-                                                .stopWithSavepoint(
-                                                        JobID.fromHexString(jobId),
-                                                        isWithDrain,
-                                                        null,
-                                                        SavepointFormatType.DEFAULT)
-                                                .get(
-                                                        clientTimeout.toMillis(),
-                                                        TimeUnit.MILLISECONDS);
-                                return Optional.of(savepoint);
-                            } catch (Exception e) {
-                                throw new FlinkException(
-                                        "Could not stop job "
-                                                + jobId
-                                                + " in session "
-                                                + sessionContext.getSessionId()
-                                                + ".",
-                                        e);
-                            }
-                        } else {
-                            clusterClient.cancel(JobID.fromHexString(jobId));
-                            return Optional.empty();
-                        }
-                    });
+            return sendRequest(
+                            FetchResultsHeaders.getInstance(),
+                            fetchResultsTokenParameters,
+                            EmptyRequestBody.getInstance())
+                    .get();
         } catch (Exception e) {
+            LOG.error(
+                    String.format(
+                            "Unexpected error occurs when fetching results. OperationHandle ID: %s.",
+                            operationHandle),
+                    e);
             throw new SqlExecutionException(
-                    "Could not stop job "
-                            + jobId
-                            + " in session "
-                            + sessionContext.getSessionId()
-                            + ".",
+                    String.format(
+                            "Unexpected error occurs when fetching results. OperationHandle ID: %s.",
+                            operationHandle),
                     e);
         }
     }
 
-    /**
-     * Retrieves the {@link ClusterClient} from the session and runs the given {@link ClusterAction}
-     * against it.
-     *
-     * @param clusterAction the cluster action to run against the retrieved {@link ClusterClient}.
-     * @param <ClusterID> type of the cluster id
-     * @param <Result>> type of the result
-     * @throws FlinkException if something goes wrong
-     */
-    private <ClusterID, Result> Result runClusterAction(
-            ClusterAction<ClusterID, Result> clusterAction) throws FlinkException {
-        final Configuration configuration = (Configuration) sessionContext.getReadableConfig();
-        final ClusterClientFactory<ClusterID> clusterClientFactory =
-                sessionContext
-                        .getExecutionContext()
-                        .wrapClassLoader(
-                                () ->
-                                        clusterClientServiceLoader.getClusterClientFactory(
-                                                configuration));
-
-        final ClusterID clusterId = clusterClientFactory.getClusterId(configuration);
-        Preconditions.checkNotNull(
-                clusterId, "No cluster ID found for session " + sessionContext.getSessionId());
-
-        try (final ClusterDescriptor<ClusterID> clusterDescriptor =
-                        clusterClientFactory.createClusterDescriptor(configuration);
-                final ClusterClient<ClusterID> clusterClient =
-                        clusterDescriptor.retrieve(clusterId).getClusterClient()) {
-            return clusterAction.runAction(clusterClient);
+    public Long parseTokenFromUri(String uri) {
+        if (uri == null || uri.length() == 0) {
+            return null;
         }
-    }
-
-    /**
-     * Internal interface to encapsulate cluster actions which are executed via the {@link
-     * ClusterClient}.
-     *
-     * @param <ClusterID> type of the cluster id
-     * @param <Result>> type of the result
-     */
-    @FunctionalInterface
-    private interface ClusterAction<ClusterID, Result> {
-
-        /**
-         * Run the cluster action with the given {@link ClusterClient}.
-         *
-         * @param clusterClient to run the cluster action against
-         * @throws FlinkException if something goes wrong
-         */
-        Result runAction(ClusterClient<ClusterID> clusterClient) throws FlinkException;
+        String[] split = uri.split("/");
+        return Long.valueOf(split[split.length - 1]);
     }
 }

@@ -19,10 +19,10 @@
 package org.apache.flink.table.client.cli;
 
 import org.apache.flink.api.java.tuple.Tuple2;
-import org.apache.flink.table.client.gateway.ResultDescriptor;
 import org.apache.flink.table.client.gateway.SqlExecutionException;
 import org.apache.flink.table.client.gateway.TypedResult;
-import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.client.gateway.local.result.MaterializedResult;
+import org.apache.flink.table.gateway.rest.serde.RowDataInfo;
 import org.apache.flink.table.utils.print.PrintStyle;
 
 import org.jline.keymap.KeyMap;
@@ -59,14 +59,14 @@ public class CliTableResultView extends CliResultView<CliTableResultView.ResultT
     private static final int MIN_REFRESH_INTERVAL = 1; // every 100ms
     private static final int LAST_PAGE = 0;
 
-    public CliTableResultView(CliClient client, ResultDescriptor resultDescriptor) {
+    public CliTableResultView(CliClient client, MaterializedResult result) {
         super(
                 client,
-                resultDescriptor,
+                result,
                 PrintStyle.tableauWithTypeInferredColumnWidths(
-                        resultDescriptor.getResultSchema(),
-                        resultDescriptor.getRowDataStringConverter(),
-                        resultDescriptor.maxColumnWidth(),
+                        result.getResultSchema(),
+                        result.getRowDataToStringConverter(),
+                        result.maxColumnWidth(),
                         false,
                         false));
 
@@ -89,23 +89,21 @@ public class CliTableResultView extends CliResultView<CliTableResultView.ResultT
     @Override
     protected void refresh() {
         // take snapshot
-        TypedResult<Integer> result;
+        TypedResult<Integer> snapshottedResult;
         try {
-            result =
-                    client.getExecutor()
-                            .snapshotResult(resultDescriptor.getResultId(), getVisibleMainHeight());
+            snapshottedResult = ((MaterializedResult) result).snapshot(getVisibleMainHeight());
         } catch (SqlExecutionException e) {
             close(e);
             return;
         }
 
         // stop retrieval if job is done
-        if (result.getType() == TypedResult.ResultType.EOS) {
+        if (snapshottedResult.getType() == TypedResult.ResultType.EOS) {
             stopRetrieval(false);
         }
         // update page
-        else if (result.getType() == TypedResult.ResultType.PAYLOAD) {
-            int newPageCount = result.getPayload();
+        else if (snapshottedResult.getType() == TypedResult.ResultType.PAYLOAD) {
+            int newPageCount = snapshottedResult.getPayload();
             pageCount = newPageCount;
             if (page > newPageCount) {
                 page = LAST_PAGE;
@@ -265,13 +263,12 @@ public class CliTableResultView extends CliResultView<CliTableResultView.ResultT
     protected List<AttributedString> computeMainHeaderLines() {
         final AttributedStringBuilder schemaHeader = new AttributedStringBuilder();
 
-        IntStream.range(0, resultDescriptor.getResultSchema().getColumnCount())
+        IntStream.range(0, result.getResultSchema().getColumnCount())
                 .forEach(
                         idx -> {
                             schemaHeader.style(AttributedStyle.DEFAULT);
                             schemaHeader.append(' ');
-                            String columnName =
-                                    resultDescriptor.getResultSchema().getColumnNames().get(idx);
+                            String columnName = result.getResultSchema().getColumnNames().get(idx);
                             schemaHeader.style(AttributedStyle.DEFAULT.underline());
                             normalizeColumn(schemaHeader, columnName, columnWidths[idx]);
                         });
@@ -289,21 +286,17 @@ public class CliTableResultView extends CliResultView<CliTableResultView.ResultT
     private void updatePage() {
         // retrieve page
         final int retrievalPage = page == LAST_PAGE ? pageCount : page;
-        final List<RowData> rows;
+        final List<String[]> stringRows;
         try {
-            rows =
-                    client.getExecutor()
-                            .retrieveResultPage(resultDescriptor.getResultId(), retrievalPage);
+            stringRows =
+                    ((MaterializedResult) result)
+                            .retrievePage(retrievalPage).stream()
+                                    .map(RowDataInfo::toStringifiedFields)
+                                    .collect(Collectors.toList());
         } catch (SqlExecutionException e) {
             close(e);
             return;
         }
-
-        // convert page
-        final List<String[]> stringRows =
-                rows.stream()
-                        .map(resultDescriptor.getRowDataStringConverter()::convert)
-                        .collect(Collectors.toList());
 
         // update results
         if (previousResultsPage == retrievalPage) {

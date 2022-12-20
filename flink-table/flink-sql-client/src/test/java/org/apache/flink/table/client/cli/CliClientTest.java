@@ -18,33 +18,17 @@
 
 package org.apache.flink.table.client.cli;
 
-import org.apache.flink.client.cli.DefaultCLI;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.runtime.testutils.CommonTestUtils;
-import org.apache.flink.streaming.environment.TestingJobClient;
-import org.apache.flink.table.api.DataTypes;
-import org.apache.flink.table.api.ResultKind;
 import org.apache.flink.table.api.SqlDialect;
-import org.apache.flink.table.api.internal.TableResultInternal;
-import org.apache.flink.table.catalog.Column;
-import org.apache.flink.table.catalog.ResolvedSchema;
-import org.apache.flink.table.client.cli.parser.SqlCommandParserImpl;
+import org.apache.flink.table.api.SqlParserEOFException;
 import org.apache.flink.table.client.cli.parser.SqlMultiLineParser;
 import org.apache.flink.table.client.cli.utils.SqlParserHelper;
-import org.apache.flink.table.client.cli.utils.TestTableResult;
+import org.apache.flink.table.client.gateway.ClientResult;
 import org.apache.flink.table.client.gateway.Executor;
-import org.apache.flink.table.client.gateway.ResultDescriptor;
 import org.apache.flink.table.client.gateway.SqlExecutionException;
-import org.apache.flink.table.client.gateway.TypedResult;
-import org.apache.flink.table.client.gateway.context.DefaultContext;
 import org.apache.flink.table.client.gateway.context.SessionContext;
-import org.apache.flink.table.data.RowData;
-import org.apache.flink.table.operations.ModifyOperation;
-import org.apache.flink.table.operations.Operation;
-import org.apache.flink.table.operations.QueryOperation;
-import org.apache.flink.types.Row;
-import org.apache.flink.util.CloseableIterator;
 
 import org.jline.reader.Candidate;
 import org.jline.reader.LineReader;
@@ -69,8 +53,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -128,7 +110,7 @@ class CliClientTest {
     void testExecuteSqlInteractiveWithSqlCompleter() throws Exception {
         final MockExecutor mockExecutor = new MockExecutor(new SqlParserHelper(SqlDialect.HIVE));
         String sessionId = "test-session";
-        mockExecutor.openSession(sessionId);
+        mockExecutor.open(sessionId);
 
         InputStream inputStream = new ByteArrayInputStream(ORIGIN_HIVE_SQL.getBytes());
         OutputStream outputStream = new ByteArrayOutputStream(256);
@@ -156,7 +138,7 @@ class CliClientTest {
     @Test
     void testHistoryFile() throws Exception {
         final MockExecutor mockExecutor = new MockExecutor();
-        mockExecutor.openSession(SESSION_ID);
+        mockExecutor.open(SESSION_ID);
 
         InputStream inputStream = new ByteArrayInputStream("help;\nuse catalog cat;\n".getBytes());
         Path historyFilePath = historyTempFile();
@@ -255,7 +237,7 @@ class CliClientTest {
         String content = String.join("\n", statements);
 
         final MockExecutor mockExecutor = new MockExecutor();
-        mockExecutor.openSession(SESSION_ID);
+        mockExecutor.open(SESSION_ID);
         CliClient cliClient =
                 new CliClient(DEFAULT_TERMINAL_FACTORY, mockExecutor, historyTempFile());
 
@@ -289,7 +271,7 @@ class CliClientTest {
         final MockExecutor mockExecutor = new MockExecutor();
         mockExecutor.isSync = true;
 
-        mockExecutor.openSession(SESSION_ID);
+        mockExecutor.open(SESSION_ID);
 
         Path historyFilePath = historyTempFile();
 
@@ -326,7 +308,7 @@ class CliClientTest {
         final MockExecutor mockExecutor = new MockExecutor();
         mockExecutor.isSync = true;
 
-        mockExecutor.openSession(SESSION_ID);
+        mockExecutor.open(SESSION_ID);
         Path historyFilePath = historyTempFile();
         InputStream inputStream =
                 new ByteArrayInputStream("SET 'key'='value';\nSELECT 1;\nSET;\n ".getBytes());
@@ -363,7 +345,7 @@ class CliClientTest {
         final MockExecutor mockExecutor = new MockExecutor();
         mockExecutor.isSync = false;
 
-        mockExecutor.openSession(SESSION_ID);
+        mockExecutor.open(SESSION_ID);
         OutputStream outputStream = new ByteArrayOutputStream(256);
         try (CliClient client =
                 new CliClient(
@@ -387,7 +369,7 @@ class CliClientTest {
         final String mockSavepoint = "/my/savepoint/path";
         mockExecutor.savepoint = mockSavepoint;
 
-        mockExecutor.openSession(SESSION_ID);
+        mockExecutor.open(SESSION_ID);
         OutputStream outputStream = new ByteArrayOutputStream(256);
         try (CliClient client =
                 new CliClient(
@@ -429,11 +411,11 @@ class CliClientTest {
     private void verifySqlCompletion(String statement, int position, List<String> expectedHints)
             throws IOException {
         final MockExecutor mockExecutor = new MockExecutor();
-        mockExecutor.openSession(SESSION_ID);
+        mockExecutor.open(SESSION_ID);
 
         final SqlCompleter completer = new SqlCompleter(mockExecutor);
-        final SqlMultiLineParser parser =
-                new SqlMultiLineParser(new SqlCommandParserImpl(mockExecutor));
+        final SqlMultiLineParser parser = null;
+        //                new SqlMultiLineParser(new SqlCommandParserImpl(mockExecutor));
 
         try (Terminal terminal = TerminalUtils.createDumbTerminal()) {
             final LineReader reader = LineReaderBuilder.builder().terminal(terminal).build();
@@ -457,7 +439,7 @@ class CliClientTest {
     }
 
     private String executeSqlFromContent(MockExecutor executor, String content) throws IOException {
-        executor.openSession("test-session");
+        executor.open("test-session");
         OutputStream outputStream = new ByteArrayOutputStream(256);
         try (CliClient client =
                 new CliClient(
@@ -504,29 +486,14 @@ class CliClientTest {
         }
 
         @Override
-        public void start() throws SqlExecutionException {}
-
-        @Override
-        public void openSession(@Nullable String sessionId) throws SqlExecutionException {
+        public void open(@Nullable String sessionId) throws SqlExecutionException {
             Configuration configuration = new Configuration();
             configuration.set(TABLE_DML_SYNC, isSync);
-
-            DefaultContext defaultContext =
-                    new DefaultContext(
-                            Collections.emptyList(),
-                            configuration,
-                            Collections.singletonList(new DefaultCLI()));
-            sessionContext = SessionContext.create(defaultContext, sessionId);
             helper.registerTables();
         }
 
         @Override
-        public void closeSession() throws SqlExecutionException {}
-
-        @Override
-        public Map<String, String> getSessionConfigMap() throws SqlExecutionException {
-            return sessionContext.getConfigMap();
-        }
+        public void close() throws SqlExecutionException {}
 
         @Override
         public ReadableConfig getSessionConfig() throws SqlExecutionException {
@@ -547,119 +514,60 @@ class CliClientTest {
         }
 
         @Override
-        public TableResultInternal executeOperation(Operation operation)
-                throws SqlExecutionException {
+        public ClientResult executeStatement(String statement)
+                throws SqlExecutionException, SqlParserEOFException {
             if (failExecution) {
                 throw new SqlExecutionException("Fail execution.");
             }
-            if (operation instanceof ModifyOperation) {
-                if (isSync) {
-                    isAwait = true;
-                    try {
-                        Thread.sleep(60_000L);
-                    } catch (InterruptedException e) {
-                        throw new SqlExecutionException("Fail to execute", e);
-                    }
-                }
-                return new TestTableResult(
-                        new TestingJobClient(),
-                        ResultKind.SUCCESS_WITH_CONTENT,
-                        ResolvedSchema.of(Column.physical("result", DataTypes.BIGINT())),
-                        CloseableIterator.adapterForIterator(
-                                Collections.singletonList(Row.of(-1L)).iterator()));
-            }
-            return TestTableResult.TABLE_RESULT_OK;
+            //            if (operation instanceof ModifyOperation) {
+            //                if (isSync) {
+            //                    isAwait = true;
+            //                    try {
+            //                        Thread.sleep(60_000L);
+            //                    } catch (InterruptedException e) {
+            //                        throw new SqlExecutionException("Fail to execute", e);
+            //                    }
+            //                }
+            //                return new TestTableResult(
+            //                        new TestingJobClient(),
+            //                        ResultKind.SUCCESS_WITH_CONTENT,
+            //                        ResolvedSchema.of(Column.physical("result",
+            // DataTypes.BIGINT())),
+            //                        CloseableIterator.adapterForIterator(
+            //                                Collections.singletonList(Row.of(-1L)).iterator()));
+            //            }
+            //            return TestTableResult.TABLE_RESULT_OK;
+            return null;
         }
 
-        @Override
-        public TableResultInternal executeModifyOperations(List<ModifyOperation> operations)
-                throws SqlExecutionException {
-            if (failExecution) {
-                throw new SqlExecutionException("Fail execution.");
-            }
-            if (isSync) {
-                isAwait = true;
-                try {
-                    Thread.sleep(60_000L);
-                } catch (InterruptedException e) {
-                    throw new SqlExecutionException("Fail to execute", e);
-                }
-            }
-            return new TestTableResult(
-                    new TestingJobClient(),
-                    ResultKind.SUCCESS_WITH_CONTENT,
-                    ResolvedSchema.of(Column.physical("result", DataTypes.BIGINT())),
-                    CloseableIterator.adapterForIterator(
-                            Collections.singletonList(Row.of(-1L)).iterator()));
-        }
-
-        @Override
-        public Operation parseStatement(String statement) throws SqlExecutionException {
-            receivedStatement = statement;
-
-            try {
-                return helper.getSqlParser().parse(statement).get(0);
-            } catch (Exception ex) {
-                throw new SqlExecutionException("Parse error: " + statement, ex);
-            }
-        }
+        //        @Override
+        //        public TableResultInternal executeModifyOperations(List<ModifyOperation>
+        // operations)
+        //                throws SqlExecutionException {
+        //            if (failExecution) {
+        //                throw new SqlExecutionException("Fail execution.");
+        //            }
+        //            if (isSync) {
+        //                isAwait = true;
+        //                try {
+        //                    Thread.sleep(60_000L);
+        //                } catch (InterruptedException e) {
+        //                    throw new SqlExecutionException("Fail to execute", e);
+        //                }
+        //            }
+        //            return new TestTableResult(
+        //                    new TestingJobClient(),
+        //                    ResultKind.SUCCESS_WITH_CONTENT,
+        //                    ResolvedSchema.of(Column.physical("result", DataTypes.BIGINT())),
+        //                    CloseableIterator.adapterForIterator(
+        //                            Collections.singletonList(Row.of(-1L)).iterator()));
+        //        }
 
         @Override
         public List<String> completeStatement(String statement, int position) {
             receivedStatement = statement;
             receivedPosition = position;
             return Arrays.asList(helper.getSqlParser().getCompletionHints(statement, position));
-        }
-
-        @Override
-        public ResultDescriptor executeQuery(QueryOperation query) throws SqlExecutionException {
-            if (isSync) {
-                isAwait = true;
-                try {
-                    Thread.sleep(60_000L);
-                } catch (InterruptedException e) {
-                    throw new SqlExecutionException("Fail to execute", e);
-                }
-            }
-            return null;
-        }
-
-        @Override
-        public TypedResult<List<RowData>> retrieveResultChanges(String resultId)
-                throws SqlExecutionException {
-            return null;
-        }
-
-        @Override
-        public TypedResult<Integer> snapshotResult(String resultId, int pageSize)
-                throws SqlExecutionException {
-            return null;
-        }
-
-        @Override
-        public List<RowData> retrieveResultPage(String resultId, int page)
-                throws SqlExecutionException {
-            return null;
-        }
-
-        @Override
-        public void cancelQuery(String resultId) throws SqlExecutionException {
-            // nothing to do
-        }
-
-        @Override
-        public void removeJar(String jarUrl) {
-            throw new UnsupportedOperationException("Not implemented.");
-        }
-
-        @Override
-        public Optional<String> stopJob(String jobId, boolean isWithSavepoint, boolean isWithDrain)
-                throws SqlExecutionException {
-            if (isWithSavepoint) {
-                return Optional.of(savepoint);
-            } else {
-                return Optional.empty();
-            }
         }
     }
 }

@@ -19,10 +19,11 @@
 package org.apache.flink.table.client.cli;
 
 import org.apache.flink.api.java.tuple.Tuple2;
-import org.apache.flink.table.client.gateway.ResultDescriptor;
 import org.apache.flink.table.client.gateway.SqlExecutionException;
 import org.apache.flink.table.client.gateway.TypedResult;
-import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.client.gateway.local.result.ChangelogCollectResult;
+import org.apache.flink.table.client.gateway.local.result.ChangelogResult;
+import org.apache.flink.table.gateway.rest.serde.RowDataInfo;
 import org.apache.flink.table.utils.print.PrintStyle;
 
 import org.jline.keymap.KeyMap;
@@ -59,14 +60,14 @@ public class CliChangelogResultView
     private LocalTime lastRetrieval;
     private int scrolling;
 
-    public CliChangelogResultView(CliClient client, ResultDescriptor resultDescriptor) {
+    public CliChangelogResultView(CliClient client, ChangelogResult result) {
         super(
                 client,
-                resultDescriptor,
+                result,
                 PrintStyle.tableauWithTypeInferredColumnWidths(
-                        resultDescriptor.getResultSchema(),
-                        resultDescriptor.getRowDataStringConverter(),
-                        resultDescriptor.maxColumnWidth(),
+                        result.getResultSchema(),
+                        result.getRowDataToStringConverter(),
+                        result.maxColumnWidth(),
                         false,
                         true));
 
@@ -102,16 +103,16 @@ public class CliChangelogResultView
     @Override
     protected void refresh() {
         // retrieve change record
-        final TypedResult<List<RowData>> result;
+        final TypedResult<List<RowDataInfo>> collectResult;
         try {
-            result = client.getExecutor().retrieveResultChanges(resultDescriptor.getResultId());
+            collectResult = ((ChangelogCollectResult) result).retrieveChanges();
         } catch (SqlExecutionException e) {
             close(e);
             return;
         }
 
-        // do nothing if result is empty
-        switch (result.getType()) {
+        // do nothing if collectResult is empty
+        switch (collectResult.getType()) {
             case EMPTY:
                 // do nothing
                 break;
@@ -120,11 +121,11 @@ public class CliChangelogResultView
                 stopRetrieval(false);
                 break;
             default:
-                List<RowData> changes = result.getPayload();
+                List<RowDataInfo> changes = collectResult.getPayload();
 
-                for (RowData change : changes) {
+                for (RowDataInfo change : changes) {
                     // convert row
-                    final String[] row = tableauStyle.rowFieldsToString(change);
+                    final String[] row = change.toStringifiedFields();
 
                     // update results
 
@@ -267,7 +268,7 @@ public class CliChangelogResultView
         // add change column
         List<String> columnNames = new ArrayList<>(columnWidths.length);
         columnNames.add("op");
-        columnNames.addAll(resultDescriptor.getResultSchema().getColumnNames());
+        columnNames.addAll(result.getResultSchema().getColumnNames());
 
         final AttributedStringBuilder schemaHeader = new AttributedStringBuilder();
         IntStream.range(0, columnNames.size())

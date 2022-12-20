@@ -19,24 +19,15 @@
 package org.apache.flink.table.client.gateway;
 
 import org.apache.flink.configuration.ReadableConfig;
-import org.apache.flink.table.api.TableResult;
-import org.apache.flink.table.api.internal.TableResultInternal;
-import org.apache.flink.table.data.RowData;
-import org.apache.flink.table.operations.ModifyOperation;
-import org.apache.flink.table.operations.Operation;
-import org.apache.flink.table.operations.QueryOperation;
+import org.apache.flink.table.api.SqlParserEOFException;
 
 import javax.annotation.Nullable;
 
+import java.net.URL;
 import java.util.List;
-import java.util.Map;
-import java.util.Optional;
 
 /** A gateway for communicating with Flink and other external systems. */
 public interface Executor {
-
-    /** Starts the executor and ensures that its is ready for commands to be executed. */
-    void start() throws SqlExecutionException;
 
     /**
      * Open a new session by using the given session id.
@@ -44,30 +35,18 @@ public interface Executor {
      * @param sessionId session identifier.
      * @throws SqlExecutionException if any error happen
      */
-    void openSession(@Nullable String sessionId) throws SqlExecutionException;
+    void open(@Nullable String sessionId) throws SqlExecutionException;
 
     /**
      * Close the resources of session for given session id.
      *
      * @throws SqlExecutionException if any error happen
      */
-    void closeSession() throws SqlExecutionException;
-
-    /**
-     * Returns a copy of {@link Map} of all session configurations that are defined by the executor
-     * and the session.
-     *
-     * <p>Both this method and {@link #getSessionConfig()} return the same configuration set, but
-     * different return type.
-     */
-    Map<String, String> getSessionConfigMap() throws SqlExecutionException;
+    void close() throws SqlExecutionException;
 
     /**
      * Returns a {@link ReadableConfig} of all session configurations that are defined by the
      * executor and the session.
-     *
-     * <p>Both this method and {@link #getSessionConfigMap()} return the same configuration set, but
-     * different return type.
      */
     ReadableConfig getSessionConfig() throws SqlExecutionException;
 
@@ -96,47 +75,17 @@ public interface Executor {
      */
     void setSessionProperty(String key, String value) throws SqlExecutionException;
 
-    /** Parse a SQL statement to {@link Operation}. */
-    Operation parseStatement(String statement) throws SqlExecutionException;
+    ClientResult executeStatement(String statement)
+            throws SqlExecutionException, SqlParserEOFException;
+
+    default void configureStatement(String statement) throws SqlExecutionException {
+        throw new UnsupportedOperationException("Not implemented.");
+    }
 
     /** Returns a list of completion hints for the given statement at the given position. */
     List<String> completeStatement(String statement, int position);
 
-    /** Executes an operation, and return {@link TableResult} as execution result. */
-    TableResultInternal executeOperation(Operation operation) throws SqlExecutionException;
-
-    /** Executes modify operations, and return {@link TableResult} as execution result. */
-    TableResultInternal executeModifyOperations(List<ModifyOperation> operations)
-            throws SqlExecutionException;
-
-    /** Submits a Flink SQL query job (detached) and returns the result descriptor. */
-    ResultDescriptor executeQuery(QueryOperation query) throws SqlExecutionException;
-
-    /** Asks for the next changelog results (non-blocking). */
-    TypedResult<List<RowData>> retrieveResultChanges(String resultId) throws SqlExecutionException;
-
-    /**
-     * Creates an immutable result snapshot of the running Flink job. Throws an exception if no
-     * Flink job can be found. Returns the number of pages.
-     */
-    TypedResult<Integer> snapshotResult(String resultId, int pageSize) throws SqlExecutionException;
-
-    /**
-     * Returns the rows that are part of the current page or throws an exception if the snapshot has
-     * been expired.
-     */
-    List<RowData> retrieveResultPage(String resultId, int page) throws SqlExecutionException;
-
-    /**
-     * Cancels a table program and stops the result retrieval. Blocking until cancellation command
-     * has been sent to cluster.
-     */
-    void cancelQuery(String resultId) throws SqlExecutionException;
-
-    /** Remove the JAR resource from the classloader with specified session. */
-    void removeJar(String jarPath);
-
-    /** Stops a job in the specified session. */
-    Optional<String> stopJob(String jobId, boolean isWithSavepoint, boolean isWithDrain)
-            throws SqlExecutionException;
+    default void addJar(URL dependency) throws SqlExecutionException {
+        throw new UnsupportedOperationException();
+    }
 }

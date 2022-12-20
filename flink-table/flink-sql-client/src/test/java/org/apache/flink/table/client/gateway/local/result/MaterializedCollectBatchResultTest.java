@@ -18,18 +18,20 @@
 
 package org.apache.flink.table.client.gateway.local.result;
 
+import org.apache.flink.api.common.JobID;
 import org.apache.flink.table.api.DataTypes;
-import org.apache.flink.table.api.ResultKind;
-import org.apache.flink.table.api.internal.TableResultInternal;
 import org.apache.flink.table.catalog.ResolvedSchema;
-import org.apache.flink.table.client.cli.utils.TestTableResult;
+import org.apache.flink.table.client.gateway.ClientResult;
 import org.apache.flink.table.client.gateway.TypedResult;
-import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.binary.BinaryRowData;
-import org.apache.flink.table.data.conversion.DataStructureConverter;
-import org.apache.flink.table.data.conversion.DataStructureConverters;
+import org.apache.flink.table.data.conversion.RowRowConverter;
+import org.apache.flink.table.gateway.rest.serde.RowDataInfo;
+import org.apache.flink.table.planner.functions.casting.RowDataToStringConverterImpl;
 import org.apache.flink.table.types.DataType;
+import org.apache.flink.table.utils.DateTimeUtils;
+import org.apache.flink.table.utils.print.RowDataToStringConverter;
 import org.apache.flink.types.Row;
+import org.apache.flink.util.CloseableIterator;
 
 import org.junit.jupiter.api.Test;
 
@@ -48,24 +50,21 @@ class MaterializedCollectBatchResultTest extends BaseMaterializedResultTest {
                 ResolvedSchema.physical(
                         new String[] {"f0", "f1"},
                         new DataType[] {DataTypes.STRING(), DataTypes.INT()});
-
-        @SuppressWarnings({"unchecked", "rawtypes"})
-        final DataStructureConverter<RowData, Row> rowConverter =
-                (DataStructureConverter)
-                        DataStructureConverters.getConverter(schema.toPhysicalRowDataType());
+        final RowDataInfoConverter rowConverter =
+                buildRowDataInfoConverter(schema.toPhysicalRowDataType());
 
         try (TestMaterializedCollectBatchResult result =
                 new TestMaterializedCollectBatchResult(
-                        new TestTableResult(ResultKind.SUCCESS_WITH_CONTENT, schema),
+                        new ClientResult(true, schema, JobID.generate(), CloseableIterator.empty()),
                         Integer.MAX_VALUE,
                         createInternalBinaryRowDataConverter(schema.toPhysicalRowDataType()))) {
 
             result.isRetrieving = true;
 
-            result.processRecord(Row.of("A", 1));
-            result.processRecord(Row.of("B", 1));
-            result.processRecord(Row.of("A", 1));
-            result.processRecord(Row.of("C", 2));
+            result.processRecord(toRowDataInfo("A", 1));
+            result.processRecord(toRowDataInfo("B", 1));
+            result.processRecord(toRowDataInfo("A", 1));
+            result.processRecord(toRowDataInfo("C", 2));
 
             assertThat(result.snapshot(1)).isEqualTo(TypedResult.payload(4));
 
@@ -86,7 +85,7 @@ class MaterializedCollectBatchResultTest extends BaseMaterializedResultTest {
                     result.retrievePage(4),
                     rowConverter);
 
-            result.processRecord(Row.of("A", 1));
+            result.processRecord(toRowDataInfo("A", 1));
 
             assertThat(result.snapshot(1)).isEqualTo(TypedResult.payload(5));
 
@@ -120,24 +119,21 @@ class MaterializedCollectBatchResultTest extends BaseMaterializedResultTest {
                         new String[] {"f0", "f1"},
                         new DataType[] {DataTypes.STRING(), DataTypes.INT()});
 
-        @SuppressWarnings({"unchecked", "rawtypes"})
-        final DataStructureConverter<RowData, Row> rowConverter =
-                (DataStructureConverter)
-                        DataStructureConverters.getConverter(schema.toPhysicalRowDataType());
-
+        final RowDataInfoConverter rowConverter =
+                buildRowDataInfoConverter(schema.toPhysicalRowDataType());
         try (TestMaterializedCollectBatchResult result =
                 new TestMaterializedCollectBatchResult(
-                        new TestTableResult(ResultKind.SUCCESS_WITH_CONTENT, schema),
+                        new ClientResult(true, schema, JobID.generate(), CloseableIterator.empty()),
                         2, // limit the materialized table to 2 rows
                         3,
                         createInternalBinaryRowDataConverter(
                                 schema.toPhysicalRowDataType()))) { // with 3 rows overcommitment
             result.isRetrieving = true;
 
-            result.processRecord(Row.of("D", 1));
-            result.processRecord(Row.of("A", 1));
-            result.processRecord(Row.of("B", 1));
-            result.processRecord(Row.of("A", 1));
+            result.processRecord(toRowDataInfo("D", 1));
+            result.processRecord(toRowDataInfo("A", 1));
+            result.processRecord(toRowDataInfo("B", 1));
+            result.processRecord(toRowDataInfo("A", 1));
 
             assertRowEquals(
                     Arrays.asList(
@@ -156,20 +152,39 @@ class MaterializedCollectBatchResultTest extends BaseMaterializedResultTest {
                     result.retrievePage(2),
                     rowConverter);
 
-            result.processRecord(Row.of("C", 1));
+            result.processRecord(toRowDataInfo("C", 1));
 
             assertRowEquals(
                     Arrays.asList(Row.of("A", 1), Row.of("C", 1)), // limit clean up has taken place
                     result.getMaterializedTable(),
                     rowConverter);
 
-            result.processRecord(Row.of("A", 1));
+            result.processRecord(toRowDataInfo("A", 1));
 
             assertRowEquals(
                     Arrays.asList(null, Row.of("C", 1), Row.of("A", 1)),
                     result.getMaterializedTable(),
                     rowConverter);
         }
+    }
+
+    private RowDataInfoConverter buildRowDataInfoConverter(DataType rowType) {
+        RowRowConverter converter = RowRowConverter.create(rowType);
+        converter.open(MaterializedCollectBatchResultTest.class.getClassLoader());
+        RowDataToStringConverter toStringConverter =
+                new RowDataToStringConverterImpl(
+                        rowType,
+                        DateTimeUtils.UTC_ZONE.toZoneId(),
+                        Thread.currentThread().getContextClassLoader(),
+                        false);
+        return new RowDataInfoConverter() {
+            @Override
+            public RowDataInfo convert(Row row) {
+                return new RowDataInfo(
+                        row.getKind(),
+                        Arrays.asList(toStringConverter.convert(converter.toInternal(row))));
+            }
+        };
     }
 
     // --------------------------------------------------------------------------------------------
@@ -184,7 +199,7 @@ class MaterializedCollectBatchResultTest extends BaseMaterializedResultTest {
         public boolean isRetrieving;
 
         public TestMaterializedCollectBatchResult(
-                TableResultInternal tableResult,
+                ClientResult tableResult,
                 int maxRowCount,
                 int overcommitThreshold,
                 Function<Row, BinaryRowData> converter) {
@@ -193,9 +208,7 @@ class MaterializedCollectBatchResultTest extends BaseMaterializedResultTest {
         }
 
         public TestMaterializedCollectBatchResult(
-                TableResultInternal tableResult,
-                int maxRowCount,
-                Function<Row, BinaryRowData> converter) {
+                ClientResult tableResult, int maxRowCount, Function<Row, BinaryRowData> converter) {
             super(tableResult, maxRowCount);
             this.converter = converter;
         }
@@ -203,10 +216,6 @@ class MaterializedCollectBatchResultTest extends BaseMaterializedResultTest {
         @Override
         protected boolean isRetrieving() {
             return isRetrieving;
-        }
-
-        public void processRecord(Row row) {
-            processRecord(converter.apply(row));
         }
     }
 }

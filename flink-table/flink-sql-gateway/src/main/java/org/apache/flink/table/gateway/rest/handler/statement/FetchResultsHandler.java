@@ -67,14 +67,12 @@ public class FetchResultsHandler
 
         // Get the statement results
         @Nullable ResultSet resultSet;
-        @Nullable String resultType;
         Long nextToken;
 
         try {
             resultSet =
                     service.fetchResults(sessionHandle, operationHandle, token, Integer.MAX_VALUE);
             nextToken = resultSet.getNextToken();
-            resultType = resultSet.getResultType().toString();
         } catch (Exception e) {
             throw new SqlGatewayException(e);
         }
@@ -89,6 +87,8 @@ public class FetchResultsHandler
 
         return CompletableFuture.completedFuture(
                 new FetchResultsResponseBody(
-                        ResultInfo.create(resultSet, RowFormat.JSON), resultType, nextResultUri));
+                        ResultInfo.create(resultSet, RowFormat.JSON),
+                        resultSet.getResultType(),
+                        nextResultUri));
     }
 }
