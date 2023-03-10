@@ -51,7 +51,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 /** Utilities for bridging {@link FunctionDefinition} with Calcite's representation of functions. */
-final class BridgingUtils {
+public final class BridgingUtils {
     static String createName(ContextResolvedFunction resolvedFunction) {
         return resolvedFunction
                 .getIdentifier()
@@ -125,21 +125,21 @@ final class BridgingUtils {
                 .orElse(null);
     }
 
-    static SqlReturnTypeInference createSqlReturnTypeInference(
+    public static SqlReturnTypeInference createSqlReturnTypeInference(
             DataTypeFactory dataTypeFactory,
             FunctionDefinition definition,
             TypeInference typeInference) {
         return new TypeInferenceReturnInference(dataTypeFactory, definition, typeInference);
     }
 
-    static SqlOperandTypeInference createSqlOperandTypeInference(
+    public static SqlOperandTypeInference createSqlOperandTypeInference(
             DataTypeFactory dataTypeFactory,
             FunctionDefinition definition,
             TypeInference typeInference) {
         return new TypeInferenceOperandInference(dataTypeFactory, definition, typeInference);
     }
 
-    static SqlOperandTypeChecker createSqlOperandTypeChecker(
+    public static SqlOperandTypeChecker createSqlOperandTypeChecker(
             DataTypeFactory dataTypeFactory,
             FunctionDefinition definition,
             TypeInference typeInference) {

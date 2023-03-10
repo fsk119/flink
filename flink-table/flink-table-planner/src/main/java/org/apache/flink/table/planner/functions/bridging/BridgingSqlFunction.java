@@ -69,7 +69,7 @@ public class BridgingSqlFunction extends SqlFunction {
     private final ContextResolvedFunction resolvedFunction;
     private final TypeInference typeInference;
 
-    private BridgingSqlFunction(
+    public BridgingSqlFunction(
             DataTypeFactory dataTypeFactory,
             FlinkTypeFactory typeFactory,
             RexFactory rexFactory,

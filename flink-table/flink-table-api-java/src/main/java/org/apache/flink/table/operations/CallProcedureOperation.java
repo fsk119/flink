@@ -16,24 +16,20 @@
  * limitations under the License.
  */
 
-package org.apache.flink.table.functions;
+package org.apache.flink.table.operations;
 
-import org.apache.flink.annotation.PublicEvolving;
+import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.functions.UserDefinedProcedure;
 
-/** Categorizes the semantics of a {@link FunctionDefinition}. */
-@PublicEvolving
-public enum FunctionKind {
-    SCALAR,
+import java.lang.reflect.Method;
 
-    TABLE,
+public interface CallProcedureOperation extends Operation {
 
-    ASYNC_TABLE,
+    UserDefinedProcedure getDefinition();
 
-    AGGREGATE,
+    Method getMethod();
 
-    TABLE_AGGREGATE,
+    Object[] getArguments();
 
-    PROCEDURE,
-
-    OTHER
+    <T> RowData toInternal(T value);
 }

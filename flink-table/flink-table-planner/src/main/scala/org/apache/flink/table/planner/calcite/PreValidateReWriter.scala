@@ -19,6 +19,7 @@ package org.apache.flink.table.planner.calcite
 
 import org.apache.flink.sql.parser.`type`.SqlMapTypeNameSpec
 import org.apache.flink.sql.parser.SqlProperty
+import org.apache.flink.sql.parser.ddl.SqlCallProcedure
 import org.apache.flink.sql.parser.dml.RichSqlInsert
 import org.apache.flink.sql.parser.dql.SqlRichExplain
 import org.apache.flink.table.api.ValidationException
@@ -59,6 +60,13 @@ class PreValidateReWriter(
           case _ => // do nothing
         }
       case r: RichSqlInsert => rewriteInsert(r)
+      case c: SqlCallProcedure =>
+        c.getOperandList.zipWithIndex.foreach {
+          case (node, idx) => {
+            val validated = validator.validate(node)
+            c.setOperand(validated)
+          }
+        }
       case _ => // do nothing
     }
   }

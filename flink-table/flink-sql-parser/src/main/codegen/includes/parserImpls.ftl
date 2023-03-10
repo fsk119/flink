@@ -2437,3 +2437,23 @@ SqlStopJob SqlStopJob() :
         return new SqlStopJob(getPos(), jobId, isWithSavepoint, isWithDrain);
     }
 }
+
+/**
+ * Parses a CALL statement.
+ */
+SqlCallProcedure SqlFlinkProcedureCall() :
+{
+    final Span s;
+    SqlNode routineCall;
+}
+{
+    <CALL> {
+        s = span();
+    }
+    routineCall = NamedRoutineCall(
+            SqlFunctionCategory.USER_DEFINED_PROCEDURE,
+            ExprContext.ACCEPT_SUB_QUERY)
+    {
+        return new SqlCallProcedure(s.end(routineCall), routineCall);
+    }
+}

@@ -87,6 +87,8 @@ public final class UserDefinedFunctionHelper {
 
     public static final String ASYNC_TABLE_EVAL = "eval";
 
+    public static final String PROCEDURE_EVAL = "eval";
+
     /**
      * Tries to infer the TypeInformation of an AggregateFunction's accumulator type.
      *

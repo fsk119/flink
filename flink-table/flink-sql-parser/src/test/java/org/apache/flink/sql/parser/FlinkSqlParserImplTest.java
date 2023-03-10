@@ -393,6 +393,11 @@ class FlinkSqlParserImplTest extends SqlParserTest {
     }
 
     @Test
+    void testCall() {
+        sql("call abc(1+1)").ok("CALL abc(1+1)");
+    }
+
+    @Test
     void testAlterTableAddSingleColumn() {
         sql("alter table if exists t1 add new_column int not null")
                 .ok(

@@ -18,7 +18,7 @@
 package org.apache.flink.table.planner.calcite
 
 import org.apache.flink.sql.parser.ExtendedSqlNode
-import org.apache.flink.sql.parser.ddl.{SqlCompilePlan, SqlReset, SqlSet, SqlUseModules}
+import org.apache.flink.sql.parser.ddl.{SqlCallProcedure, SqlCompilePlan, SqlReset, SqlSet, SqlUseModules}
 import org.apache.flink.sql.parser.dml.{RichSqlInsert, SqlBeginStatementSet, SqlCompileAndExecutePlan, SqlEndStatementSet, SqlExecute, SqlExecutePlan, SqlStatementSet}
 import org.apache.flink.sql.parser.dql._
 import org.apache.flink.table.api.{TableException, ValidationException}
@@ -60,7 +60,7 @@ class FlinkPlannerImpl(
     val config: FrameworkConfig,
     catalogReaderSupplier: JFunction[JBoolean, CalciteCatalogReader],
     typeFactory: FlinkTypeFactory,
-    cluster: RelOptCluster) {
+    val cluster: RelOptCluster) {
 
   val operatorTable: SqlOperatorTable = config.getOperatorTable
   val parser: CalciteParser = new CalciteParser(config.getParserConfig)
@@ -149,6 +149,7 @@ class FlinkPlannerImpl(
         || sqlNode.isInstanceOf[SqlSet]
         || sqlNode.isInstanceOf[SqlReset]
         || sqlNode.isInstanceOf[SqlExecutePlan]
+        || sqlNode.isInstanceOf[SqlCallProcedure]
       ) {
         return sqlNode
       }

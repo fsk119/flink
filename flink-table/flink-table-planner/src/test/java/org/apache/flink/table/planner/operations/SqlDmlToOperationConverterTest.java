@@ -18,14 +18,22 @@
 
 package org.apache.flink.table.planner.operations;
 
+import org.apache.flink.sql.parser.ddl.SqlCallProcedure;
 import org.apache.flink.sql.parser.dql.SqlRichExplain;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.ExplainDetail;
 import org.apache.flink.table.api.Schema;
 import org.apache.flink.table.api.SqlDialect;
+import org.apache.flink.table.api.TableEnvironment;
+import org.apache.flink.table.catalog.Catalog;
+import org.apache.flink.table.catalog.CatalogFunctionImpl;
 import org.apache.flink.table.catalog.CatalogTable;
+import org.apache.flink.table.catalog.GenericInMemoryCatalog;
 import org.apache.flink.table.catalog.ObjectIdentifier;
+import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.table.expressions.ResolvedExpression;
+import org.apache.flink.table.functions.ProducerResult;
+import org.apache.flink.table.functions.UserDefinedProcedure;
 import org.apache.flink.table.operations.BeginStatementSetOperation;
 import org.apache.flink.table.operations.DeleteFromFilterOperation;
 import org.apache.flink.table.operations.EndStatementSetOperation;
@@ -308,6 +316,26 @@ public class SqlDmlToOperationConverterTest extends SqlToOperationConverterTestB
         checkUpdateOperation(operation);
     }
 
+    @Test
+    public void testCallTask() throws Exception {
+        Catalog procedureCatalog = new GenericInMemoryCatalog("test_procedure");
+        procedureCatalog.createFunction(
+                new ObjectPath("default", "test"),
+                new CatalogFunctionImpl(TestProcedure.class.getName()),
+                false);
+        catalogManager.registerCatalog("test_procedure", procedureCatalog);
+
+        CalciteParser parser = getParserBySqlDialect(SqlDialect.DEFAULT);
+        SqlNode node = parser.parse("CALL test_procedure.`default`.test(1)");
+        assertThat(node).isInstanceOf(SqlCallProcedure.class);
+
+        Operation operation =
+                SqlToOperationConverter.convert(
+                                getPlannerBySqlDialect(SqlDialect.DEFAULT), catalogManager, node)
+                        .get();
+        assertThat(operation).isInstanceOf(PlannerCallOperation.class);
+    }
+
     private void checkExplainSql(String sql) {
         FlinkPlannerImpl planner = getPlannerBySqlDialect(SqlDialect.DEFAULT);
         CalciteParser parser = getParserBySqlDialect(SqlDialect.DEFAULT);
@@ -330,5 +358,14 @@ public class SqlDmlToOperationConverterTest extends SqlToOperationConverterTestB
         assertThat(operation).isInstanceOf(SinkModifyOperation.class);
         SinkModifyOperation sinkModifyOperation = (SinkModifyOperation) operation;
         assertThat(sinkModifyOperation.isUpdate()).isTrue();
+    }
+
+    public static class TestProcedure extends UserDefinedProcedure {
+
+        private static final long serialVersionUID = -4580846143350683868L;
+
+        public ProducerResult<String> eval(TableEnvironment env, int i) {
+            return new ProducerResult<>(String.valueOf(i));
+        }
     }
 }

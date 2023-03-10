@@ -51,6 +51,7 @@
     "org.apache.flink.sql.parser.ddl.SqlAlterViewAs"
     "org.apache.flink.sql.parser.ddl.SqlAlterViewRename"
     "org.apache.flink.sql.parser.ddl.SqlCompilePlan"
+    "org.apache.flink.sql.parser.ddl.SqlCallProcedure"
     "org.apache.flink.sql.parser.ddl.SqlCreateCatalog"
     "org.apache.flink.sql.parser.ddl.SqlCreateDatabase"
     "org.apache.flink.sql.parser.ddl.SqlCreateFunction"
@@ -575,6 +576,7 @@
     "SqlAnalyzeTable()"
     "SqlStopJob()"
     "SqlShowJobs()"
+    "SqlFlinkProcedureCall()"
   ]
 
   # List of methods for parsing custom literals.

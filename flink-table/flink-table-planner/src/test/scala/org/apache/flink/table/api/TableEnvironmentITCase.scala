@@ -27,6 +27,7 @@ import org.apache.flink.table.api.config.TableConfigOptions
 import org.apache.flink.table.api.internal.{TableEnvironmentImpl, TableEnvironmentInternal}
 import org.apache.flink.table.catalog._
 import org.apache.flink.table.planner.factories.utils.TestCollectionTableFactory
+import org.apache.flink.table.planner.operations.SqlDmlToOperationConverterTest
 import org.apache.flink.table.planner.runtime.utils.TestingAppendSink
 import org.apache.flink.table.planner.utils.{TableTestUtil, TestTableSourceSinks, TestTableSourceWithTime}
 import org.apache.flink.table.planner.utils.TableTestUtil.{readFromResource, replaceStageId}
@@ -74,6 +75,18 @@ class TableEnvironmentITCase(tableEnvName: String, isStreaming: Boolean) extends
       case _ => throw new UnsupportedOperationException("unsupported tableEnvName: " + tableEnvName)
     }
     TestTableSourceSinks.createPersonCsvTemporaryTable(tEnv, "MyTable")
+  }
+
+  @Test
+  def testExecuteCall(): Unit = {
+    val procedureCatalog = new GenericInMemoryCatalog("test_procedure")
+    procedureCatalog.createFunction(
+      new ObjectPath("default", "test"),
+      new CatalogFunctionImpl(classOf[SqlDmlToOperationConverterTest.TestProcedure].getName),
+      false)
+    tEnv.registerCatalog("test_procedure", procedureCatalog)
+
+    val result = tEnv.executeSql("CALL test_procedure.`default`.test(1+1)")
   }
 
   @Test

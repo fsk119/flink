@@ -28,6 +28,7 @@ import org.apache.flink.table.api.config.ExecutionConfigOptions.LegacyCastBehavi
 import org.apache.flink.table.api.internal.TableEnvironmentInternal
 import org.apache.flink.table.catalog.CatalogDatabaseImpl
 import org.apache.flink.table.data.{GenericRowData, MapData, RowData}
+import org.apache.flink.table.planner.expressions.utils.Func1
 import org.apache.flink.table.planner.factories.TestValuesTableFactory
 import org.apache.flink.table.planner.runtime.utils._
 import org.apache.flink.table.planner.runtime.utils.BatchTestBase.row
@@ -66,6 +67,21 @@ class CalcITCase extends StreamingTestBase {
 
     val expected = List("1970-01-03")
     assertEquals(expected.sorted, sink.getAppendResults.sorted)
+  }
+
+  @Test
+  def testOverLoad(): Unit = {
+    val ddl =
+      """
+        |CREATE TABLE tbl (
+        |  a INT
+        |) WITH (
+        |  'connector' = 'values'
+        |)
+        |""".stripMargin
+    tEnv.executeSql(ddl)
+    tEnv.registerFunction("func", Func1)
+    print(tEnv.explainSql("SELECT func(a) FROM tbl"))
   }
 
   @Test

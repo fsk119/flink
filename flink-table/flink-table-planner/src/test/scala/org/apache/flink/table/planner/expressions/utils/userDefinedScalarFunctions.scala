@@ -50,7 +50,7 @@ object Func1 extends ScalarFunction {
 
   def eval(b: Byte): Byte = (b + 1).toByte
 
-  def eval(s: Short): Short = (s + 1).toShort
+//  def eval(s: Int): Int = (s + 1).toInt
 
   def eval(f: Float): Float = f + 1
 }

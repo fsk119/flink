@@ -22,11 +22,13 @@ import org.apache.flink.api.dag.Transformation
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
 import org.apache.flink.streaming.api.graph.StreamGraph
 import org.apache.flink.table.api._
+import org.apache.flink.table.api.bridge.java.internal.StreamTableEnvironmentImpl
 import org.apache.flink.table.api.config.ExecutionConfigOptions
 import org.apache.flink.table.catalog._
 import org.apache.flink.table.catalog.ManagedTableListener.isManagedTable
 import org.apache.flink.table.connector.sink.DynamicTableSink
 import org.apache.flink.table.delegation.{Executor, ExtendedOperationExecutor, Parser, Planner}
+import org.apache.flink.table.expressions.ResolvedExpression
 import org.apache.flink.table.factories.{DynamicTableSinkFactory, FactoryUtil, TableFactoryUtil}
 import org.apache.flink.table.module.{Module, ModuleManager}
 import org.apache.flink.table.operations._
@@ -37,7 +39,7 @@ import org.apache.flink.table.planner.catalog.CatalogManagerCalciteSchema
 import org.apache.flink.table.planner.connectors.DynamicSinkUtils
 import org.apache.flink.table.planner.connectors.DynamicSinkUtils.validateSchemaAndApplyImplicitCast
 import org.apache.flink.table.planner.delegation.DialectFactory.DefaultParserContext
-import org.apache.flink.table.planner.expressions.PlannerTypeInferenceUtilImpl
+import org.apache.flink.table.planner.expressions.{PlannerTypeInferenceUtilImpl, RexNodeExpression}
 import org.apache.flink.table.planner.hint.FlinkHints
 import org.apache.flink.table.planner.operations.PlannerQueryOperation
 import org.apache.flink.table.planner.plan.nodes.calcite.LogicalLegacySink
@@ -61,6 +63,7 @@ import org.apache.calcite.plan.{RelTrait, RelTraitDef}
 import org.apache.calcite.rel.RelNode
 import org.apache.calcite.rel.hint.RelHint
 import org.apache.calcite.rel.logical.LogicalTableModify
+import org.apache.calcite.rex.{RexLiteral, RexNode}
 
 import java.lang.{Long => JLong}
 import java.util
@@ -182,6 +185,39 @@ abstract class PlannerBase(
         new DefaultParserContext(catalogManager, plannerContext, executor))
     }
     extendedOperationExecutor
+  }
+
+  override def reduce(arguments: java.util.List[ResolvedExpression]): java.util.List[Object] = {
+
+    val env = new StreamTableEnvironmentImpl(
+      catalogManager,
+      moduleManager,
+      null, // it's possible
+      functionCatalog,
+      tableConfig,
+      null, // it's possible to get
+      this,
+      executor,
+      isStreamingMode);
+
+    val exprs =
+      arguments.map(argument => argument.asInstanceOf[RexNodeExpression].getRexNode).toList
+    val reduceList = new util.ArrayList[RexNode]()
+    plannerContext.getCluster.getPlanner.getExecutor
+      .reduce(createRelBuilder.getRexBuilder, exprs, reduceList)
+
+    reduceList
+      .zip(arguments)
+      .map {
+        case (reduceNode: RexLiteral, expression) => {
+          reduceNode
+            .getValueAs(expression.getOutputDataType.getConversionClass)
+            .asInstanceOf[Object]
+        }
+        case (rexNode: RexNode, expression) =>
+          throw new TableException("Meet condition cannot reduce with expression: " + expression)
+      }
+      .toList
   }
 
   override def translate(

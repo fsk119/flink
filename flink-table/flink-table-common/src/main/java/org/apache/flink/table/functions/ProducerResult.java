@@ -18,22 +18,28 @@
 
 package org.apache.flink.table.functions;
 
-import org.apache.flink.annotation.PublicEvolving;
+import org.apache.flink.core.execution.JobClient;
+import org.apache.flink.util.CloseableIterator;
 
-/** Categorizes the semantics of a {@link FunctionDefinition}. */
-@PublicEvolving
-public enum FunctionKind {
-    SCALAR,
+import javax.annotation.Nullable;
 
-    TABLE,
+import java.util.Optional;
 
-    ASYNC_TABLE,
+public class ProducerResult<T> {
 
-    AGGREGATE,
+    private final CloseableIterator<T> result;
+    @Nullable private final JobClient jobClient;
 
-    TABLE_AGGREGATE,
+    public ProducerResult(CloseableIterator<T> result) {
+        this.result = result;
+        this.jobClient = null;
+    }
 
-    PROCEDURE,
+    public CloseableIterator<T> getValue() {
+        return result;
+    }
 
-    OTHER
+    Optional<JobClient> getJobClient() {
+        return Optional.empty();
+    }
 }

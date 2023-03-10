@@ -26,9 +26,11 @@ import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.functions.AggregateFunction;
+import org.apache.flink.table.functions.ProducerResult;
 import org.apache.flink.table.functions.ScalarFunction;
 import org.apache.flink.table.functions.TableAggregateFunction;
 import org.apache.flink.table.functions.TableFunction;
+import org.apache.flink.table.functions.UserDefinedProcedure;
 import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.types.inference.ArgumentTypeStrategy;
 import org.apache.flink.table.types.inference.InputTypeStrategies;
@@ -61,6 +63,18 @@ class TypeInferenceExtractorTest {
 
     private static Stream<TestSpec> testData() {
         return Stream.of(
+                TestSpec.forProcedure(TestUserProcedure.class)
+                        .expectNamedArguments("i")
+                        .expectTypedArguments(DataTypes.INT())
+                        .expectOutputMapping(
+                                InputTypeStrategies.sequence(
+                                        new String[] {"i"},
+                                        new ArgumentTypeStrategy[] {
+                                            InputTypeStrategies.explicit(
+                                                    DataTypes.INT().notNull().bridgedTo(int.class)),
+                                        }),
+                                TypeStrategies.explicit(DataTypes.STRING())),
+
                 // function hint defines everything
                 TestSpec.forScalarFunction(FullFunctionHint.class)
                         .expectNamedArguments("i", "s")
@@ -577,6 +591,12 @@ class TypeInferenceExtractorTest {
                                     new DataTypeFactoryMock(), function));
         }
 
+        static TestSpec forProcedure(Class<? extends UserDefinedProcedure> function) {
+            return new TestSpec(
+                    function.getSimpleName(),
+                    () -> TypeInferenceExtractor.forProcedure(new DataTypeFactoryMock(), function));
+        }
+
         TestSpec expectNamedArguments(String... expectedArgumentNames) {
             this.expectedArgumentNames = Arrays.asList(expectedArgumentNames);
             return this;
@@ -813,6 +833,13 @@ class TypeInferenceExtractorTest {
     private static class OutputHintTableFunction extends TableFunction<Row> {
         public void eval(int i) {
             // nothing to do
+        }
+    }
+
+    private static class TestUserProcedure extends UserDefinedProcedure {
+
+        public ProducerResult<String> eval(Object tableEnv, int i) {
+            return new ProducerResult<>("hello");
         }
     }
 

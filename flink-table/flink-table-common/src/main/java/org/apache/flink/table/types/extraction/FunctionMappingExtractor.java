@@ -24,6 +24,7 @@ import org.apache.flink.table.annotation.FunctionHint;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.catalog.DataTypeFactory;
+import org.apache.flink.table.functions.ProducerResult;
 import org.apache.flink.table.functions.UserDefinedFunction;
 import org.apache.flink.table.types.CollectionDataType;
 import org.apache.flink.table.types.DataType;
@@ -444,6 +445,33 @@ final class FunctionMappingExtractor {
             final DataType dataType =
                     DataTypeExtractor.extractFromMethodOutput(
                             extractor.typeFactory, extractor.function, method);
+            return FunctionResultTemplate.of(dataType);
+        };
+    }
+
+    static ResultExtraction createGenericResultExtractionForProcedure(
+            int genericPos, boolean allowDataTypeHint) {
+        return (extractor, method) -> {
+            Type outputType = method.getGenericReturnType();
+            if (allowDataTypeHint) {
+                final Set<DataTypeHint> dataTypeHints = new HashSet<>();
+                dataTypeHints.addAll(collectAnnotationsOfMethod(DataTypeHint.class, method));
+                dataTypeHints.addAll(
+                        collectAnnotationsOfClass(DataTypeHint.class, extractor.function));
+                if (dataTypeHints.size() > 1) {
+                    throw extractionError(
+                            "More than one data type hint found for output of function. "
+                                    + "Please use a function hint instead.");
+                }
+                if (dataTypeHints.size() == 1) {
+                    return FunctionTemplate.createResultTemplate(
+                            extractor.typeFactory, dataTypeHints.iterator().next());
+                }
+                // otherwise continue with regular extraction
+            }
+            final DataType dataType =
+                    DataTypeExtractor.extractFromGeneric(
+                            extractor.typeFactory, ProducerResult.class, genericPos, outputType);
             return FunctionResultTemplate.of(dataType);
         };
     }

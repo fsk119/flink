@@ -29,6 +29,7 @@ import org.apache.flink.table.functions.TableAggregateFunction;
 import org.apache.flink.table.functions.TableFunction;
 import org.apache.flink.table.functions.UserDefinedFunction;
 import org.apache.flink.table.functions.UserDefinedFunctionHelper;
+import org.apache.flink.table.functions.UserDefinedProcedure;
 import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.types.inference.InputTypeStrategies;
 import org.apache.flink.table.types.inference.InputTypeStrategy;
@@ -48,6 +49,7 @@ import java.util.stream.Collectors;
 
 import static org.apache.flink.table.types.extraction.ExtractionUtils.extractionError;
 import static org.apache.flink.table.types.extraction.FunctionMappingExtractor.createGenericResultExtraction;
+import static org.apache.flink.table.types.extraction.FunctionMappingExtractor.createGenericResultExtractionForProcedure;
 import static org.apache.flink.table.types.extraction.FunctionMappingExtractor.createParameterAndReturnTypeVerification;
 import static org.apache.flink.table.types.extraction.FunctionMappingExtractor.createParameterSignatureExtraction;
 import static org.apache.flink.table.types.extraction.FunctionMappingExtractor.createParameterVerification;
@@ -140,6 +142,22 @@ public final class TypeInferenceExtractor {
                         null,
                         createGenericResultExtraction(AsyncTableFunction.class, 0, true),
                         createParameterWithArgumentVerification(CompletableFuture.class));
+        return extractTypeInference(mappingExtractor);
+    }
+
+    public static TypeInference forProcedure(
+            DataTypeFactory typeFactory, Class<? extends UserDefinedProcedure> function) {
+        final FunctionMappingExtractor mappingExtractor =
+                new FunctionMappingExtractor(
+                        typeFactory,
+                        function,
+                        UserDefinedFunctionHelper.PROCEDURE_EVAL,
+                        createParameterSignatureExtraction(1),
+                        null,
+                        createGenericResultExtractionForProcedure(0, true),
+                        (method, arguments, outputType) -> {
+                            System.out.println("Do nothing right now.");
+                        });
         return extractTypeInference(mappingExtractor);
     }
 

@@ -18,22 +18,19 @@
 
 package org.apache.flink.table.functions;
 
-import org.apache.flink.annotation.PublicEvolving;
+import org.apache.flink.table.catalog.DataTypeFactory;
+import org.apache.flink.table.types.extraction.TypeInferenceExtractor;
+import org.apache.flink.table.types.inference.TypeInference;
 
-/** Categorizes the semantics of a {@link FunctionDefinition}. */
-@PublicEvolving
-public enum FunctionKind {
-    SCALAR,
+public abstract class UserDefinedProcedure extends UserDefinedFunction {
 
-    TABLE,
+    public final FunctionKind getKind() {
+        return FunctionKind.PROCEDURE;
+    }
 
-    ASYNC_TABLE,
-
-    AGGREGATE,
-
-    TABLE_AGGREGATE,
-
-    PROCEDURE,
-
-    OTHER
+    @Override
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public TypeInference getTypeInference(DataTypeFactory typeFactory) {
+        return TypeInferenceExtractor.forProcedure(typeFactory, (Class) getClass());
+    }
 }

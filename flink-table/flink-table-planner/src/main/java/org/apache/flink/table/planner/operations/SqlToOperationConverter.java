@@ -39,6 +39,7 @@ import org.apache.flink.sql.parser.ddl.SqlAlterViewAs;
 import org.apache.flink.sql.parser.ddl.SqlAlterViewProperties;
 import org.apache.flink.sql.parser.ddl.SqlAlterViewRename;
 import org.apache.flink.sql.parser.ddl.SqlAnalyzeTable;
+import org.apache.flink.sql.parser.ddl.SqlCallProcedure;
 import org.apache.flink.sql.parser.ddl.SqlChangeColumn;
 import org.apache.flink.sql.parser.ddl.SqlCompilePlan;
 import org.apache.flink.sql.parser.ddl.SqlCreateCatalog;
@@ -90,6 +91,7 @@ import org.apache.flink.sql.parser.dql.SqlShowViews;
 import org.apache.flink.sql.parser.dql.SqlUnloadModule;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.Schema;
+import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.TableException;
 import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.catalog.Catalog;
@@ -120,6 +122,8 @@ import org.apache.flink.table.catalog.exceptions.TableNotPartitionedException;
 import org.apache.flink.table.connector.sink.DynamicTableSink;
 import org.apache.flink.table.connector.sink.abilities.SupportsDeletePushDown;
 import org.apache.flink.table.connector.source.abilities.SupportsRowLevelModificationScan;
+import org.apache.flink.table.data.conversion.DataStructureConverter;
+import org.apache.flink.table.data.conversion.DataStructureConverters;
 import org.apache.flink.table.expressions.CallExpression;
 import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.table.expressions.FieldReferenceExpression;
@@ -128,6 +132,9 @@ import org.apache.flink.table.expressions.ValueLiteralExpression;
 import org.apache.flink.table.factories.FactoryUtil;
 import org.apache.flink.table.functions.BuiltInFunctionDefinitions;
 import org.apache.flink.table.functions.FunctionIdentifier;
+import org.apache.flink.table.functions.ProducerResult;
+import org.apache.flink.table.functions.UserDefinedFunctionHelper;
+import org.apache.flink.table.functions.UserDefinedProcedure;
 import org.apache.flink.table.operations.BeginStatementSetOperation;
 import org.apache.flink.table.operations.CompileAndExecutePlanOperation;
 import org.apache.flink.table.operations.DeleteFromFilterOperation;
@@ -191,6 +198,8 @@ import org.apache.flink.table.operations.ddl.DropTableOperation;
 import org.apache.flink.table.operations.ddl.DropTempSystemFunctionOperation;
 import org.apache.flink.table.operations.ddl.DropViewOperation;
 import org.apache.flink.table.planner.calcite.FlinkPlannerImpl;
+import org.apache.flink.table.planner.functions.bridging.BridgingProcedureSqlFunction;
+import org.apache.flink.table.planner.functions.inference.CallBindingCallContext;
 import org.apache.flink.table.planner.hint.FlinkHints;
 import org.apache.flink.table.planner.utils.Expander;
 import org.apache.flink.table.planner.utils.OperationConverterUtils;
@@ -198,6 +207,7 @@ import org.apache.flink.table.planner.utils.RowLevelModificationContextUtils;
 import org.apache.flink.table.resource.ResourceType;
 import org.apache.flink.table.resource.ResourceUri;
 import org.apache.flink.table.types.DataType;
+import org.apache.flink.table.types.inference.TypeInferenceUtil;
 import org.apache.flink.util.Preconditions;
 import org.apache.flink.util.StringUtils;
 
@@ -205,6 +215,7 @@ import org.apache.calcite.rel.RelRoot;
 import org.apache.calcite.rel.hint.HintStrategyTable;
 import org.apache.calcite.rel.hint.RelHint;
 import org.apache.calcite.rel.logical.LogicalTableModify;
+import org.apache.calcite.sql.SqlCallBinding;
 import org.apache.calcite.sql.SqlDelete;
 import org.apache.calcite.sql.SqlDialect;
 import org.apache.calcite.sql.SqlIdentifier;
@@ -232,6 +243,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Mix-in tool class for {@code SqlNode} that allows DDL commands to be converted to {@link
@@ -403,6 +415,8 @@ public class SqlToOperationConverter {
             return Optional.of(converter.convertDelete((SqlDelete) validated));
         } else if (validated instanceof SqlUpdate) {
             return Optional.of(converter.convertUpdate((SqlUpdate) validated));
+        } else if (validated instanceof SqlCallProcedure) {
+            return Optional.of(converter.convertCallProcedure((SqlCallProcedure) validated));
         } else {
             return Optional.empty();
         }
@@ -1561,6 +1575,87 @@ public class SqlToOperationConverter {
         PlannerQueryOperation queryOperation = new PlannerQueryOperation(tableModify);
         return new SinkModifyOperation(
                 contextResolvedTable, queryOperation, SinkModifyOperation.ModifyType.UPDATE);
+    }
+
+    private Operation convertCallProcedure(SqlCallProcedure sqlCallProcedure) {
+        BridgingProcedureSqlFunction function =
+                (BridgingProcedureSqlFunction) sqlCallProcedure.getSqlFunctionCall();
+
+        SqlCallBinding sqlCallBinding =
+                new SqlCallBinding(
+                        flinkPlanner.validator(),
+                        flinkPlanner.validator().getEmptyScope(),
+                        sqlCallProcedure.getOperand());
+        CallBindingCallContext bindingContext =
+                new CallBindingCallContext(
+                        catalogManager.getDataTypeFactory(),
+                        function.getProcedure().getDefinition(),
+                        sqlCallBinding,
+                        flinkPlanner
+                                .validator()
+                                .getValidatedNodeType(sqlCallProcedure.getOperand()));
+        TypeInferenceUtil.Result result =
+                TypeInferenceUtil.runTypeInference(
+                        function.getProcedure()
+                                .getDefinition()
+                                .getTypeInference(catalogManager.getDataTypeFactory()),
+                        bindingContext,
+                        null);
+
+        // TODO: move all these logic to PlannerBase
+        // collect arguments
+        Object[] args = new Object[result.getExpectedArgumentTypes().size() + 1];
+        // 0 position value is table env now
+        for (int i = 0; i < result.getExpectedArgumentTypes().size(); i++) {
+            if (bindingContext.isArgumentNull(i)) {
+                args[i + 1] = null;
+            } else if (bindingContext.isArgumentLiteral(i)) {
+                args[i + 1] =
+                        bindingContext
+                                .getArgumentValue(
+                                        i,
+                                        result.getExpectedArgumentTypes()
+                                                .get(i)
+                                                .getConversionClass())
+                                .orElse(null);
+            } else {
+                // try to reduce the expression to literal
+                throw new UnsupportedOperationException();
+            }
+        }
+
+        // collect types
+        Class<?>[] argTypes =
+                Stream.concat(
+                                Stream.of(TableEnvironment.class),
+                                result.getExpectedArgumentTypes().stream()
+                                        .map(DataType::getConversionClass))
+                        .toArray(Class<?>[]::new);
+
+        // collect result convert
+        DataStructureConverter<?, ?> converter =
+                DataStructureConverters.getConverter(result.getOutputDataType());
+
+        // get method handler
+        UserDefinedFunctionHelper.validateClassForRuntime(
+                ((UserDefinedProcedure) function.getProcedure().getDefinition()).getClass(),
+                UserDefinedFunctionHelper.PROCEDURE_EVAL,
+                argTypes,
+                ProducerResult.class,
+                function.getName());
+
+        try {
+            return new PlannerCallOperation(
+                    (UserDefinedProcedure) function.getProcedure().getDefinition(),
+                    function.getProcedure()
+                            .getDefinition()
+                            .getClass()
+                            .getMethod(UserDefinedFunctionHelper.PROCEDURE_EVAL, argTypes),
+                    args,
+                    (DataStructureConverter<Object, Object>) converter);
+        } catch (NoSuchMethodException e) {
+            throw new TableException(e.getMessage(), e);
+        }
     }
 
     private String getQuotedSqlString(SqlNode sqlNode) {

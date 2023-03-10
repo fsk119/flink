@@ -33,6 +33,7 @@ import org.apache.flink.table.functions.ScalarFunctionDefinition;
 import org.apache.flink.table.functions.TableFunctionDefinition;
 import org.apache.flink.table.planner.calcite.FlinkTypeFactory;
 import org.apache.flink.table.planner.calcite.RexFactory;
+import org.apache.flink.table.planner.functions.bridging.BridgingProcedureSqlFunction;
 import org.apache.flink.table.planner.functions.bridging.BridgingSqlAggFunction;
 import org.apache.flink.table.planner.functions.bridging.BridgingSqlFunction;
 import org.apache.flink.table.planner.functions.utils.UserDefinedFunctionUtils;
@@ -144,6 +145,8 @@ public class FunctionCatalogOperatorTable implements SqlOperatorTable {
                             SqlKind.OTHER_FUNCTION,
                             resolvedFunction,
                             typeInference);
+        } else if (definition.getKind() == FunctionKind.PROCEDURE) {
+            function = BridgingProcedureSqlFunction.of(dataTypeFactory, resolvedFunction);
         } else {
             function =
                     BridgingSqlFunction.of(
@@ -187,6 +190,9 @@ public class FunctionCatalogOperatorTable implements SqlOperatorTable {
                                 "Function '%s' cannot be used as a table function.",
                                 resolvedFunction));
             }
+            return true;
+        } else if (category == SqlFunctionCategory.USER_DEFINED_PROCEDURE
+                && kind == FunctionKind.PROCEDURE) {
             return true;
         }
         return false;
