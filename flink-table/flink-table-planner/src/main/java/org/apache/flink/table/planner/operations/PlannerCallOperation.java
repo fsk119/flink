@@ -18,30 +18,22 @@
 
 package org.apache.flink.table.planner.operations;
 
-import org.apache.flink.table.data.GenericRowData;
-import org.apache.flink.table.data.RowData;
-import org.apache.flink.table.data.conversion.DataStructureConverter;
+import org.apache.flink.table.expressions.ResolvedExpression;
 import org.apache.flink.table.functions.UserDefinedProcedure;
 import org.apache.flink.table.operations.CallProcedureOperation;
-
-import java.lang.reflect.Method;
+import org.apache.flink.table.types.DataType;
 
 public class PlannerCallOperation implements CallProcedureOperation {
 
     private final UserDefinedProcedure procedure;
-    private final Method methodHandle;
-    private final Object[] arguments;
-    private final DataStructureConverter<Object, Object> converter;
+    private final ResolvedExpression[] inputs;
+    private final DataType outputType;
 
     public PlannerCallOperation(
-            UserDefinedProcedure procedure,
-            Method methodHandle,
-            Object[] arguments,
-            DataStructureConverter<Object, Object> converter) {
+            UserDefinedProcedure procedure, ResolvedExpression[] inputs, DataType outputType) {
         this.procedure = procedure;
-        this.methodHandle = methodHandle;
-        this.arguments = arguments;
-        this.converter = converter;
+        this.inputs = inputs;
+        this.outputType = outputType;
     }
 
     @Override
@@ -50,25 +42,13 @@ public class PlannerCallOperation implements CallProcedureOperation {
     }
 
     @Override
-    public Method getMethod() {
-        return methodHandle;
+    public ResolvedExpression[] getInputs() {
+        return inputs;
     }
 
     @Override
-    public Object[] getArguments() {
-        return arguments;
-    }
-
-    @Override
-    public RowData toInternal(Object value) {
-        converter.open(PlannerCallOperation.class.getClassLoader());
-        Object internal = converter.toInternal(value);
-
-        if (internal instanceof RowData) {
-            return (RowData) internal;
-        } else {
-            return GenericRowData.of(internal);
-        }
+    public DataType getOutputType() {
+        return outputType;
     }
 
     @Override

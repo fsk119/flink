@@ -24,7 +24,7 @@ import org.apache.flink.api.dag.Transformation;
 import org.apache.flink.table.api.ExplainDetail;
 import org.apache.flink.table.api.ExplainFormat;
 import org.apache.flink.table.api.PlanReference;
-import org.apache.flink.table.expressions.ResolvedExpression;
+import org.apache.flink.table.operations.CallProcedureOperation;
 import org.apache.flink.table.operations.ModifyOperation;
 import org.apache.flink.table.operations.Operation;
 import org.apache.flink.table.operations.QueryOperation;
@@ -72,8 +72,6 @@ public interface Planner {
      */
     ExtendedOperationExecutor getExtendedOperationExecutor();
 
-    List<Object> reduce(List<ResolvedExpression> expressions);
-
     /**
      * Converts a relational tree of {@link ModifyOperation}s into a set of runnable {@link
      * Transformation}s.
@@ -88,6 +86,8 @@ public interface Planner {
      * @return list of corresponding {@link Transformation}s.
      */
     List<Transformation<?>> translate(List<ModifyOperation> modifyOperations);
+
+    ProcedureExecutor translate(CallProcedureOperation operation);
 
     /**
      * Returns the AST of the specified Table API and SQL queries and the execution plan to compute

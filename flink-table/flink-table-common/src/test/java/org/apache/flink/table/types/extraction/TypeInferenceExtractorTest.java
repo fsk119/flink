@@ -26,7 +26,7 @@ import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.functions.AggregateFunction;
-import org.apache.flink.table.functions.ProducerResult;
+import org.apache.flink.table.functions.ProcedureResult;
 import org.apache.flink.table.functions.ScalarFunction;
 import org.apache.flink.table.functions.TableAggregateFunction;
 import org.apache.flink.table.functions.TableFunction;
@@ -40,6 +40,7 @@ import org.apache.flink.table.types.inference.TypeStrategies;
 import org.apache.flink.table.types.inference.TypeStrategy;
 import org.apache.flink.table.types.utils.DataTypeFactoryMock;
 import org.apache.flink.types.Row;
+import org.apache.flink.util.CloseableIterator;
 
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -47,6 +48,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import javax.annotation.Nullable;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -838,8 +840,10 @@ class TypeInferenceExtractorTest {
 
     private static class TestUserProcedure extends UserDefinedProcedure {
 
-        public ProducerResult<String> eval(Object tableEnv, int i) {
-            return new ProducerResult<>("hello");
+        public ProcedureResult<String> eval(Object tableEnv, int i) {
+            return new ProcedureResult<String>(
+                    CloseableIterator.adapterForIterator(
+                            Collections.singletonList("Hello").iterator()));
         }
     }
 

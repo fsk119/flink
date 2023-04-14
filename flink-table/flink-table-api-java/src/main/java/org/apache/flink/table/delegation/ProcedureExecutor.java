@@ -16,17 +16,11 @@
  * limitations under the License.
  */
 
-package org.apache.flink.table.operations;
+package org.apache.flink.table.delegation;
 
-import org.apache.flink.table.expressions.ResolvedExpression;
-import org.apache.flink.table.functions.UserDefinedProcedure;
-import org.apache.flink.table.types.DataType;
+import org.apache.flink.table.api.internal.TableResultInternal;
 
-public interface CallProcedureOperation extends Operation {
+public interface ProcedureExecutor {
 
-    UserDefinedProcedure getDefinition();
-
-    ResolvedExpression[] getInputs();
-
-    DataType getOutputType();
+    TableResultInternal execute();
 }

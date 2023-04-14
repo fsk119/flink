@@ -22,14 +22,18 @@ import org.apache.flink.api.dag.Transformation
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
 import org.apache.flink.streaming.api.graph.StreamGraph
 import org.apache.flink.table.api._
+import org.apache.flink.table.api.bridge.java.StreamTableEnvironment
 import org.apache.flink.table.api.bridge.java.internal.StreamTableEnvironmentImpl
-import org.apache.flink.table.api.config.ExecutionConfigOptions
+import org.apache.flink.table.api.config.{ExecutionConfigOptions, TableConfigOptions}
+import org.apache.flink.table.api.internal.{TableResultImpl, TableResultInternal}
 import org.apache.flink.table.catalog._
 import org.apache.flink.table.catalog.ManagedTableListener.isManagedTable
 import org.apache.flink.table.connector.sink.DynamicTableSink
-import org.apache.flink.table.delegation.{Executor, ExtendedOperationExecutor, Parser, Planner}
+import org.apache.flink.table.data.conversion.DataStructureConverters
+import org.apache.flink.table.delegation.{Executor, ExtendedOperationExecutor, Parser, Planner, ProcedureExecutor}
 import org.apache.flink.table.expressions.ResolvedExpression
 import org.apache.flink.table.factories.{DynamicTableSinkFactory, FactoryUtil, TableFactoryUtil}
+import org.apache.flink.table.functions.{ProcedureResult, UserDefinedFunctionHelper}
 import org.apache.flink.table.module.{Module, ModuleManager}
 import org.apache.flink.table.operations._
 import org.apache.flink.table.operations.OutputConversionModifyOperation.UpdateMode
@@ -40,6 +44,8 @@ import org.apache.flink.table.planner.connectors.DynamicSinkUtils
 import org.apache.flink.table.planner.connectors.DynamicSinkUtils.validateSchemaAndApplyImplicitCast
 import org.apache.flink.table.planner.delegation.DialectFactory.DefaultParserContext
 import org.apache.flink.table.planner.expressions.{PlannerTypeInferenceUtilImpl, RexNodeExpression}
+import org.apache.flink.table.planner.functions.casting.RowDataToStringConverterImpl
+import org.apache.flink.table.planner.functions.utils.AdaptedResultProvider
 import org.apache.flink.table.planner.hint.FlinkHints
 import org.apache.flink.table.planner.operations.PlannerQueryOperation
 import org.apache.flink.table.planner.plan.nodes.calcite.LogicalLegacySink
@@ -53,9 +59,11 @@ import org.apache.flink.table.planner.sinks.TableSinkUtils.{inferSinkPhysicalSch
 import org.apache.flink.table.planner.utils.InternalConfigOptions.{TABLE_QUERY_CURRENT_DATABASE, TABLE_QUERY_START_EPOCH_TIME, TABLE_QUERY_START_LOCAL_TIME}
 import org.apache.flink.table.planner.utils.JavaScalaConversionUtil.{toJava, toScala}
 import org.apache.flink.table.planner.utils.TableConfigUtils
+import org.apache.flink.table.resource.ResourceManager
 import org.apache.flink.table.runtime.generated.CompileUtils
 import org.apache.flink.table.sinks.TableSink
 import org.apache.flink.table.types.utils.LegacyTypeInfoDataTypeConverter
+import org.apache.flink.util.MutableURLClassLoader
 
 import _root_.scala.collection.JavaConversions._
 import org.apache.calcite.jdbc.CalciteSchemaBuilder.asRootSchema
@@ -66,6 +74,7 @@ import org.apache.calcite.rel.logical.LogicalTableModify
 import org.apache.calcite.rex.{RexLiteral, RexNode}
 
 import java.lang.{Long => JLong}
+import java.time.ZoneId
 import java.util
 import java.util.{Collections, TimeZone}
 
@@ -187,39 +196,6 @@ abstract class PlannerBase(
     extendedOperationExecutor
   }
 
-  override def reduce(arguments: java.util.List[ResolvedExpression]): java.util.List[Object] = {
-
-    val env = new StreamTableEnvironmentImpl(
-      catalogManager,
-      moduleManager,
-      null, // it's possible
-      functionCatalog,
-      tableConfig,
-      null, // it's possible to get
-      this,
-      executor,
-      isStreamingMode);
-
-    val exprs =
-      arguments.map(argument => argument.asInstanceOf[RexNodeExpression].getRexNode).toList
-    val reduceList = new util.ArrayList[RexNode]()
-    plannerContext.getCluster.getPlanner.getExecutor
-      .reduce(createRelBuilder.getRexBuilder, exprs, reduceList)
-
-    reduceList
-      .zip(arguments)
-      .map {
-        case (reduceNode: RexLiteral, expression) => {
-          reduceNode
-            .getValueAs(expression.getOutputDataType.getConversionClass)
-            .asInstanceOf[Object]
-        }
-        case (rexNode: RexNode, expression) =>
-          throw new TableException("Meet condition cannot reduce with expression: " + expression)
-      }
-      .toList
-  }
-
   override def translate(
       modifyOperations: util.List[ModifyOperation]): util.List[Transformation[_]] = {
     beforeTranslation()
@@ -233,6 +209,88 @@ abstract class PlannerBase(
     val transformations = translateToPlan(execGraph)
     afterTranslation()
     transformations
+  }
+
+  override def translate(callProcedureOperation: CallProcedureOperation): ProcedureExecutor = {
+    new ProcedureExecutor {
+      override def execute(): TableResultInternal = {
+        val arguments = classOf[StreamTableEnvironment] :: callProcedureOperation.getInputs.toStream
+          .map(in => in.getOutputDataType.getConversionClass)
+          .toList
+        val method = callProcedureOperation.getDefinition
+          .getClass()
+          .getMethod(UserDefinedFunctionHelper.PROCEDURE_EVAL, arguments.toStream.toArray: _*)
+        val exprs =
+          callProcedureOperation.getInputs.map(
+            argument =>
+              argument
+                .asInstanceOf[RexNodeExpression]
+                .getRexNode)
+        val reduceList = new util.ArrayList[RexNode]()
+        plannerContext.getCluster.getPlanner.getExecutor
+          .reduce(createRelBuilder.getRexBuilder, exprs.toList, reduceList)
+
+        val allArgs = new StreamTableEnvironmentImpl(
+          catalogManager,
+          moduleManager,
+          // TODO: replace with TableEnvironment
+          new ResourceManager(
+            tableConfig,
+            classLoader
+              .asInstanceOf[MutableURLClassLoader]),
+          functionCatalog,
+          tableConfig,
+          // TODO: replace with TableEnvironment's ExecutionEnvironment
+          StreamExecutionEnvironment.getExecutionEnvironment, // it's possible to get
+          PlannerBase.this,
+          executor,
+          isStreamingMode) :: reduceList
+          .zip(callProcedureOperation.getInputs)
+          .map {
+            case (reduceNode: RexLiteral, expression: ResolvedExpression) => {
+              reduceNode
+                .getValueAs(expression.getOutputDataType.getConversionClass)
+                .asInstanceOf[Object]
+            }
+            case (rexNode: RexNode, expression) =>
+              throw new TableException(
+                "Meet condition cannot reduce with expression: " +
+                  expression)
+          }
+          .toList
+
+        val converter = DataStructureConverters.getConverter(callProcedureOperation.getOutputType)
+        converter.open(classLoader)
+
+        val result = method
+          .invoke(callProcedureOperation.getDefinition, allArgs.toArray: _*)
+          .asInstanceOf[ProcedureResult[_]]
+
+        val zone = tableConfig.get(TableConfigOptions.LOCAL_TIME_ZONE)
+        val zoneId =
+          if (TableConfigOptions.LOCAL_TIME_ZONE.defaultValue().equals(zone))
+            ZoneId.systemDefault()
+          else
+            ZoneId.of(zone)
+
+        TableResultImpl
+          .builder()
+          .resultProvider(
+            new AdaptedResultProvider(
+              result,
+              converter,
+              new RowDataToStringConverterImpl(
+                callProcedureOperation.getOutputType,
+                zoneId,
+                classLoader,
+                tableConfig
+                  .get(ExecutionConfigOptions.TABLE_EXEC_LEGACY_CAST_BEHAVIOUR)
+                  .isEnabled())))
+          .schema(ResolvedSchema.of())
+          .build()
+      }
+    }
+
   }
 
   /** Converts a relational tree of [[ModifyOperation]] into a Calcite relational expression. */

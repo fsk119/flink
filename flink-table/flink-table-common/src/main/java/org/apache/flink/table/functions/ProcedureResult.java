@@ -25,14 +25,18 @@ import javax.annotation.Nullable;
 
 import java.util.Optional;
 
-public class ProducerResult<T> {
+public class ProcedureResult<T> {
 
     private final CloseableIterator<T> result;
     @Nullable private final JobClient jobClient;
 
-    public ProducerResult(CloseableIterator<T> result) {
+    public ProcedureResult(CloseableIterator<T> result) {
+        this(result, null);
+    }
+
+    public ProcedureResult(CloseableIterator<T> result, JobClient jobClient) {
         this.result = result;
-        this.jobClient = null;
+        this.jobClient = jobClient;
     }
 
     public CloseableIterator<T> getValue() {
@@ -40,6 +44,6 @@ public class ProducerResult<T> {
     }
 
     Optional<JobClient> getJobClient() {
-        return Optional.empty();
+        return Optional.ofNullable(jobClient);
     }
 }

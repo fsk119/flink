@@ -21,6 +21,7 @@ package org.apache.flink.table.client.cli.parser;
 import org.apache.flink.table.api.SqlParserEOFException;
 import org.apache.flink.table.client.gateway.SqlExecutionException;
 
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -47,6 +48,11 @@ public class SqlCommandParserImplTest {
             "EXECUTE STATEMENT SET BEGIN\n INSERT INTO StreamingTable SELECT * FROM (VALUES (1, 'Hello World'));";
 
     private final SqlCommandParserImpl sqlCommandParserImpl = new SqlCommandParserImpl();
+
+    @Test
+    public void test() throws Exception {
+        System.out.println(sqlCommandParserImpl.test());
+    }
 
     @ParameterizedTest
     @MethodSource("positiveCases")

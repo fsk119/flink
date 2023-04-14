@@ -31,6 +31,6 @@ public abstract class UserDefinedProcedure extends UserDefinedFunction {
     @Override
     @SuppressWarnings({"unchecked", "rawtypes"})
     public TypeInference getTypeInference(DataTypeFactory typeFactory) {
-        return TypeInferenceExtractor.forProcedure(typeFactory, (Class) getClass());
+        return TypeInferenceExtractor.forProcedure(typeFactory, getClass());
     }
 }

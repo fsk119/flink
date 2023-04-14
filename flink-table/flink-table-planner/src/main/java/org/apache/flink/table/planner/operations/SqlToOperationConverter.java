@@ -91,7 +91,6 @@ import org.apache.flink.sql.parser.dql.SqlShowViews;
 import org.apache.flink.sql.parser.dql.SqlUnloadModule;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.Schema;
-import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.TableException;
 import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.catalog.Catalog;
@@ -122,8 +121,6 @@ import org.apache.flink.table.catalog.exceptions.TableNotPartitionedException;
 import org.apache.flink.table.connector.sink.DynamicTableSink;
 import org.apache.flink.table.connector.sink.abilities.SupportsDeletePushDown;
 import org.apache.flink.table.connector.source.abilities.SupportsRowLevelModificationScan;
-import org.apache.flink.table.data.conversion.DataStructureConverter;
-import org.apache.flink.table.data.conversion.DataStructureConverters;
 import org.apache.flink.table.expressions.CallExpression;
 import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.table.expressions.FieldReferenceExpression;
@@ -132,8 +129,6 @@ import org.apache.flink.table.expressions.ValueLiteralExpression;
 import org.apache.flink.table.factories.FactoryUtil;
 import org.apache.flink.table.functions.BuiltInFunctionDefinitions;
 import org.apache.flink.table.functions.FunctionIdentifier;
-import org.apache.flink.table.functions.ProducerResult;
-import org.apache.flink.table.functions.UserDefinedFunctionHelper;
 import org.apache.flink.table.functions.UserDefinedProcedure;
 import org.apache.flink.table.operations.BeginStatementSetOperation;
 import org.apache.flink.table.operations.CompileAndExecutePlanOperation;
@@ -198,9 +193,12 @@ import org.apache.flink.table.operations.ddl.DropTableOperation;
 import org.apache.flink.table.operations.ddl.DropTempSystemFunctionOperation;
 import org.apache.flink.table.operations.ddl.DropViewOperation;
 import org.apache.flink.table.planner.calcite.FlinkPlannerImpl;
+import org.apache.flink.table.planner.calcite.SqlToRexConverter;
+import org.apache.flink.table.planner.expressions.RexNodeExpression;
 import org.apache.flink.table.planner.functions.bridging.BridgingProcedureSqlFunction;
 import org.apache.flink.table.planner.functions.inference.CallBindingCallContext;
 import org.apache.flink.table.planner.hint.FlinkHints;
+import org.apache.flink.table.planner.typeutils.LogicalRelDataTypeConverter;
 import org.apache.flink.table.planner.utils.Expander;
 import org.apache.flink.table.planner.utils.OperationConverterUtils;
 import org.apache.flink.table.planner.utils.RowLevelModificationContextUtils;
@@ -215,6 +213,9 @@ import org.apache.calcite.rel.RelRoot;
 import org.apache.calcite.rel.hint.HintStrategyTable;
 import org.apache.calcite.rel.hint.RelHint;
 import org.apache.calcite.rel.logical.LogicalTableModify;
+import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rel.type.RelDataTypeFactory;
+import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlCallBinding;
 import org.apache.calcite.sql.SqlDelete;
 import org.apache.calcite.sql.SqlDialect;
@@ -243,7 +244,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Mix-in tool class for {@code SqlNode} that allows DDL commands to be converted to {@link
@@ -1580,7 +1580,6 @@ public class SqlToOperationConverter {
     private Operation convertCallProcedure(SqlCallProcedure sqlCallProcedure) {
         BridgingProcedureSqlFunction function =
                 (BridgingProcedureSqlFunction) sqlCallProcedure.getSqlFunctionCall();
-
         SqlCallBinding sqlCallBinding =
                 new SqlCallBinding(
                         flinkPlanner.validator(),
@@ -1594,6 +1593,13 @@ public class SqlToOperationConverter {
                         flinkPlanner
                                 .validator()
                                 .getValidatedNodeType(sqlCallProcedure.getOperand()));
+        ResolvedExpression[] args = new ResolvedExpression[sqlCallBinding.operands().size()];
+        for (int i = 0; i < sqlCallBinding.operands().size(); i++) {
+            args[i] =
+                    toResolvedExpression(
+                            sqlCallBinding.operand(i),
+                            bindingContext.getArgumentDataTypes().get(i));
+        }
         TypeInferenceUtil.Result result =
                 TypeInferenceUtil.runTypeInference(
                         function.getProcedure()
@@ -1601,61 +1607,10 @@ public class SqlToOperationConverter {
                                 .getTypeInference(catalogManager.getDataTypeFactory()),
                         bindingContext,
                         null);
-
-        // TODO: move all these logic to PlannerBase
-        // collect arguments
-        Object[] args = new Object[result.getExpectedArgumentTypes().size() + 1];
-        // 0 position value is table env now
-        for (int i = 0; i < result.getExpectedArgumentTypes().size(); i++) {
-            if (bindingContext.isArgumentNull(i)) {
-                args[i + 1] = null;
-            } else if (bindingContext.isArgumentLiteral(i)) {
-                args[i + 1] =
-                        bindingContext
-                                .getArgumentValue(
-                                        i,
-                                        result.getExpectedArgumentTypes()
-                                                .get(i)
-                                                .getConversionClass())
-                                .orElse(null);
-            } else {
-                // try to reduce the expression to literal
-                throw new UnsupportedOperationException();
-            }
-        }
-
-        // collect types
-        Class<?>[] argTypes =
-                Stream.concat(
-                                Stream.of(TableEnvironment.class),
-                                result.getExpectedArgumentTypes().stream()
-                                        .map(DataType::getConversionClass))
-                        .toArray(Class<?>[]::new);
-
-        // collect result convert
-        DataStructureConverter<?, ?> converter =
-                DataStructureConverters.getConverter(result.getOutputDataType());
-
-        // get method handler
-        UserDefinedFunctionHelper.validateClassForRuntime(
-                ((UserDefinedProcedure) function.getProcedure().getDefinition()).getClass(),
-                UserDefinedFunctionHelper.PROCEDURE_EVAL,
-                argTypes,
-                ProducerResult.class,
-                function.getName());
-
-        try {
-            return new PlannerCallOperation(
-                    (UserDefinedProcedure) function.getProcedure().getDefinition(),
-                    function.getProcedure()
-                            .getDefinition()
-                            .getClass()
-                            .getMethod(UserDefinedFunctionHelper.PROCEDURE_EVAL, argTypes),
-                    args,
-                    (DataStructureConverter<Object, Object>) converter);
-        } catch (NoSuchMethodException e) {
-            throw new TableException(e.getMessage(), e);
-        }
+        return new PlannerCallOperation(
+                (UserDefinedProcedure) function.getProcedure().getDefinition(),
+                args,
+                result.getOutputDataType());
     }
 
     private String getQuotedSqlString(SqlNode sqlNode) {
@@ -1668,6 +1623,29 @@ public class SqlToOperationConverter {
                                 .withUnquotedCasing(parserConfig.unquotedCasing())
                                 .withIdentifierQuoteString(parserConfig.quoting().string));
         return sqlNode.toSqlString(dialect).getSql();
+    }
+
+    private ResolvedExpression toResolvedExpression(SqlNode sqlNode, DataType outputType) {
+        SqlParser.Config parserConfig = flinkPlanner.config().getParserConfig();
+        SqlDialect dialect =
+                new CalciteSqlDialect(
+                        SqlDialect.EMPTY_CONTEXT
+                                .withQuotedCasing(parserConfig.unquotedCasing())
+                                .withConformance(parserConfig.conformance())
+                                .withUnquotedCasing(parserConfig.unquotedCasing())
+                                .withIdentifierQuoteString(parserConfig.quoting().string));
+        RelDataTypeFactory typeFactory = flinkPlanner.cluster().getTypeFactory();
+        RelDataType outputRelType =
+                LogicalRelDataTypeConverter.toRelDataType(outputType.getLogicalType(), typeFactory);
+        RexNode node =
+                new SqlToRexConverter(
+                                flinkPlanner,
+                                dialect,
+                                LogicalRelDataTypeConverter.toRelDataType(
+                                        DataTypes.ROW().getLogicalType(), typeFactory),
+                                outputRelType)
+                        .convertToRexNode(sqlNode.toSqlString(dialect).getSql());
+        return new RexNodeExpression(node, outputType, null, null);
     }
 
     private PlannerQueryOperation toQueryOperation(FlinkPlannerImpl planner, SqlNode validated) {

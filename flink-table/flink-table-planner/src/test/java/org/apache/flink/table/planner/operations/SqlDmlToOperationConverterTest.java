@@ -24,7 +24,7 @@ import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.ExplainDetail;
 import org.apache.flink.table.api.Schema;
 import org.apache.flink.table.api.SqlDialect;
-import org.apache.flink.table.api.TableEnvironment;
+import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.flink.table.catalog.Catalog;
 import org.apache.flink.table.catalog.CatalogFunctionImpl;
 import org.apache.flink.table.catalog.CatalogTable;
@@ -32,7 +32,7 @@ import org.apache.flink.table.catalog.GenericInMemoryCatalog;
 import org.apache.flink.table.catalog.ObjectIdentifier;
 import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.table.expressions.ResolvedExpression;
-import org.apache.flink.table.functions.ProducerResult;
+import org.apache.flink.table.functions.ProcedureResult;
 import org.apache.flink.table.functions.UserDefinedProcedure;
 import org.apache.flink.table.operations.BeginStatementSetOperation;
 import org.apache.flink.table.operations.DeleteFromFilterOperation;
@@ -45,6 +45,7 @@ import org.apache.flink.table.operations.StatementSetOperation;
 import org.apache.flink.table.planner.calcite.FlinkPlannerImpl;
 import org.apache.flink.table.planner.factories.TestUpdateDeleteTableFactory;
 import org.apache.flink.table.planner.parse.CalciteParser;
+import org.apache.flink.util.CloseableIterator;
 
 import org.apache.calcite.sql.SqlNode;
 import org.junit.jupiter.api.Test;
@@ -364,8 +365,10 @@ public class SqlDmlToOperationConverterTest extends SqlToOperationConverterTestB
 
         private static final long serialVersionUID = -4580846143350683868L;
 
-        public ProducerResult<String> eval(TableEnvironment env, int i) {
-            return new ProducerResult<>(String.valueOf(i));
+        public ProcedureResult<String> eval(StreamTableEnvironment env, Integer i) {
+            return new ProcedureResult<>(
+                    CloseableIterator.adapterForIterator(
+                            Collections.singletonList(String.valueOf(i)).iterator()));
         }
     }
 }

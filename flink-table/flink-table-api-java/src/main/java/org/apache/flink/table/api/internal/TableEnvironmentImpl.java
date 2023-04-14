@@ -69,7 +69,6 @@ import org.apache.flink.table.catalog.exceptions.FunctionAlreadyExistException;
 import org.apache.flink.table.catalog.exceptions.FunctionNotExistException;
 import org.apache.flink.table.catalog.exceptions.TableAlreadyExistException;
 import org.apache.flink.table.catalog.exceptions.TableNotExistException;
-import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.delegation.Executor;
 import org.apache.flink.table.delegation.ExecutorFactory;
 import org.apache.flink.table.delegation.ExtendedOperationExecutor;
@@ -80,7 +79,6 @@ import org.apache.flink.table.expressions.ApiExpressionUtils;
 import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.table.factories.FactoryUtil;
 import org.apache.flink.table.factories.PlannerFactoryUtil;
-import org.apache.flink.table.functions.ProducerResult;
 import org.apache.flink.table.functions.ScalarFunction;
 import org.apache.flink.table.functions.SqlLikeUtils;
 import org.apache.flink.table.functions.UserDefinedFunction;
@@ -170,7 +168,6 @@ import org.apache.flink.util.Preconditions;
 
 import java.io.File;
 import java.io.IOException;
-import java.lang.reflect.Method;
 import java.net.URL;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -1457,23 +1454,7 @@ public class TableEnvironmentImpl implements TableEnvironmentInternal {
             return TableResultImpl.TABLE_RESULT_OK;
         } else if (operation instanceof CallProcedureOperation) {
             CallProcedureOperation callProcedureOperation = ((CallProcedureOperation) operation);
-
-            try {
-                Method methodHandle = callProcedureOperation.getMethod();
-                @SuppressWarnings("unchecked")
-                ProducerResult<Object> result =
-                        (ProducerResult<Object>)
-                                methodHandle.invoke(
-                                        callProcedureOperation.getDefinition(),
-                                        callProcedureOperation.getArguments());
-                RowData row = callProcedureOperation.toInternal(result.getValue());
-                return TableResultImpl.builder()
-                        .resultKind(ResultKind.SUCCESS_WITH_CONTENT)
-                        .data(Collections.emptyList())
-                        .build();
-            } catch (Throwable t) {
-                throw new TableException(t.getMessage(), t);
-            }
+            return planner.translate(callProcedureOperation).execute();
         } else {
             throw new TableException(UNSUPPORTED_QUERY_IN_EXECUTE_SQL_MSG);
         }

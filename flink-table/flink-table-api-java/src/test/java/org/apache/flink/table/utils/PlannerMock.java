@@ -26,7 +26,8 @@ import org.apache.flink.table.delegation.ExtendedOperationExecutor;
 import org.apache.flink.table.delegation.InternalPlan;
 import org.apache.flink.table.delegation.Parser;
 import org.apache.flink.table.delegation.Planner;
-import org.apache.flink.table.expressions.ResolvedExpression;
+import org.apache.flink.table.delegation.ProcedureExecutor;
+import org.apache.flink.table.operations.CallProcedureOperation;
 import org.apache.flink.table.operations.ModifyOperation;
 import org.apache.flink.table.operations.Operation;
 
@@ -48,13 +49,13 @@ public class PlannerMock implements Planner {
     }
 
     @Override
-    public List<Object> reduce(List<ResolvedExpression> expressions) {
-        throw new UnsupportedOperationException("Not implemented");
+    public List<Transformation<?>> translate(List<ModifyOperation> modifyOperations) {
+        return null;
     }
 
     @Override
-    public List<Transformation<?>> translate(List<ModifyOperation> modifyOperations) {
-        return null;
+    public ProcedureExecutor translate(CallProcedureOperation operation) {
+        throw new UnsupportedOperationException();
     }
 
     @Override

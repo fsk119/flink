@@ -24,7 +24,7 @@ import org.apache.flink.table.annotation.FunctionHint;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.catalog.DataTypeFactory;
-import org.apache.flink.table.functions.ProducerResult;
+import org.apache.flink.table.functions.ProcedureResult;
 import org.apache.flink.table.functions.UserDefinedFunction;
 import org.apache.flink.table.types.CollectionDataType;
 import org.apache.flink.table.types.DataType;
@@ -471,7 +471,7 @@ final class FunctionMappingExtractor {
             }
             final DataType dataType =
                     DataTypeExtractor.extractFromGeneric(
-                            extractor.typeFactory, ProducerResult.class, genericPos, outputType);
+                            extractor.typeFactory, ProcedureResult.class, genericPos, outputType);
             return FunctionResultTemplate.of(dataType);
         };
     }
