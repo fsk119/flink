@@ -27,11 +27,14 @@ import org.apache.flink.core.fs.Path;
 import org.apache.flink.table.api.TableConfig;
 import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.api.config.TableConfigOptions;
+import org.apache.flink.table.delegation.PlannerResourceFinderUtil;
+import org.apache.flink.table.operations.ModifyOperation;
 import org.apache.flink.util.ExceptionUtils;
 import org.apache.flink.util.FileUtils;
 import org.apache.flink.util.FlinkUserCodeClassLoaders;
 import org.apache.flink.util.JarUtils;
 import org.apache.flink.util.MutableURLClassLoader;
+import org.apache.flink.util.Preconditions;
 
 import org.apache.flink.shaded.guava31.com.google.common.io.Files;
 
@@ -47,6 +50,7 @@ import java.net.URLClassLoader;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -65,8 +69,12 @@ public class ResourceManager implements Closeable {
     private static final String FILE_SCHEME = "file";
 
     private final Path localResourceDir;
-    protected final Map<ResourceUri, URL> resourceInfos;
+    protected final Map<ResourceUri, URL> functionJarInfos;
+    protected final Map<ResourceUri, URL> anonymousJarInfos;
+    protected final Map<ResourceUri, URL> fileResourceInfos;
     protected final MutableURLClassLoader userClassLoader;
+
+    private PlannerResourceFinderUtil util;
 
     public static ResourceManager createResourceManager(
             URL[] urls, ClassLoader parent, ReadableConfig config) {
@@ -80,8 +88,14 @@ public class ResourceManager implements Closeable {
                 new Path(
                         config.get(TableConfigOptions.RESOURCES_DOWNLOAD_DIR),
                         String.format("flink-table-%s", UUID.randomUUID()));
-        this.resourceInfos = new HashMap<>();
+        this.functionJarInfos = new HashMap<>();
+        this.anonymousJarInfos = new HashMap<>();
+        this.fileResourceInfos = new HashMap<>();
         this.userClassLoader = userClassLoader;
+    }
+
+    public void setPlannerResourceFinderUtil(PlannerResourceFinderUtil util) {
+        this.util = util;
     }
 
     /**
@@ -89,10 +103,11 @@ public class ResourceManager implements Closeable {
      * before actual register to guarantee transaction process. If all the resources are available,
      * register them into the {@link ResourceManager}.
      */
-    public void registerJarResources(List<ResourceUri> resourceUris) throws IOException {
+    public void registerFunctionJarResources(List<ResourceUri> resourceUris) throws IOException {
         registerResources(
                 prepareStagingResources(
                         resourceUris,
+                        functionJarInfos,
                         ResourceType.JAR,
                         true,
                         url -> {
@@ -104,7 +119,33 @@ public class ResourceManager implements Closeable {
                                         e);
                             }
                         }),
-                true);
+                true,
+                functionJarInfos);
+    }
+
+    /**
+     * Due to anyone of the resource in list maybe fail during register, so we should stage it
+     * before actual register to guarantee transaction process. If all the resources are available,
+     * register them into the {@link ResourceManager}.
+     */
+    public void registerJarResources(List<ResourceUri> resourceUris) throws IOException {
+        registerResources(
+                prepareStagingResources(
+                        resourceUris,
+                        anonymousJarInfos,
+                        ResourceType.JAR,
+                        true,
+                        url -> {
+                            try {
+                                JarUtils.checkJarFile(url);
+                            } catch (IOException e) {
+                                throw new ValidationException(
+                                        String.format("Failed to register jar resource [%s]", url),
+                                        e);
+                            }
+                        }),
+                true,
+                anonymousJarInfos);
     }
 
     /**
@@ -122,18 +163,22 @@ public class ResourceManager implements Closeable {
         Map<ResourceUri, URL> stagingResources =
                 prepareStagingResources(
                         Collections.singletonList(resourceUri),
+                        fileResourceInfos,
                         ResourceType.FILE,
                         false,
                         url -> {});
-        registerResources(stagingResources, false);
-        return resourceInfos.get(new ArrayList<>(stagingResources.keySet()).get(0)).getPath();
+        registerResources(stagingResources, false, fileResourceInfos);
+        return fileResourceInfos.get(new ArrayList<>(stagingResources.keySet()).get(0)).getPath();
     }
 
     public URLClassLoader getUserClassLoader() {
         return userClassLoader;
     }
 
-    public Map<ResourceUri, URL> getResources() {
+    public Map<ResourceUri, URL> getJarResources() {
+        Map<ResourceUri, URL> resourceInfos = new HashMap<>();
+        resourceInfos.putAll(anonymousJarInfos);
+        resourceInfos.putAll(functionJarInfos);
         return Collections.unmodifiableMap(resourceInfos);
     }
 
@@ -142,10 +187,27 @@ public class ResourceManager implements Closeable {
      * system for the remote jar. For the local jar, return the registered URL.
      */
     public Set<URL> getLocalJarResources() {
-        return resourceInfos.entrySet().stream()
+        return getJarResources().entrySet().stream()
                 .filter(entry -> ResourceType.JAR.equals(entry.getKey().getResourceType()))
                 .map(Map.Entry::getValue)
                 .collect(Collectors.toSet());
+    }
+
+    public void addJarConfiguration(TableConfig tableConfig) {
+        Set<URL> jars = new HashSet<>(anonymousJarInfos.values());
+        jars.addAll(functionJarInfos.values());
+
+        if (jars.isEmpty()) {
+            return;
+        }
+
+        final Set<String> jarFiles =
+                tableConfig
+                        .getOptional(PipelineOptions.JARS)
+                        .map(LinkedHashSet::new)
+                        .orElseGet(LinkedHashSet::new);
+        jars.forEach(file -> jarFiles.add(file.getPath()));
+        tableConfig.set(PipelineOptions.JARS, new ArrayList<>(jarFiles));
     }
 
     /**
@@ -153,24 +215,27 @@ public class ResourceManager implements Closeable {
      * {@link TableConfig#getRootConfiguration()} and stores the merged result into {@link
      * TableConfig#getConfiguration()}.
      */
-    public void addJarConfiguration(TableConfig tableConfig) {
-        final List<String> jars =
-                getLocalJarResources().stream().map(URL::toString).collect(Collectors.toList());
-        if (jars.isEmpty()) {
+    public void addJarConfiguration(ModifyOperation operation, TableConfig tableConfig) {
+        Set<URL> jars = Preconditions.checkNotNull(util).findResources(operation);
+        jars.addAll(anonymousJarInfos.values());
+        if (anonymousJarInfos.isEmpty()) {
             return;
         }
+
         final Set<String> jarFiles =
                 tableConfig
                         .getOptional(PipelineOptions.JARS)
                         .map(LinkedHashSet::new)
                         .orElseGet(LinkedHashSet::new);
-        jarFiles.addAll(jars);
+        jars.forEach(file -> jarFiles.add(file.getPath()));
         tableConfig.set(PipelineOptions.JARS, new ArrayList<>(jarFiles));
     }
 
     @Override
     public void close() throws IOException {
-        resourceInfos.clear();
+        functionJarInfos.clear();
+        fileResourceInfos.clear();
+        anonymousJarInfos.clear();
 
         IOException exception = null;
         try {
@@ -361,6 +426,7 @@ public class ResourceManager implements Closeable {
 
     private Map<ResourceUri, URL> prepareStagingResources(
             List<ResourceUri> resourceUris,
+            Map<ResourceUri, URL> resourceInfos,
             ResourceType expectedType,
             boolean executable,
             Consumer<URL> resourceChecker)
@@ -404,7 +470,9 @@ public class ResourceManager implements Closeable {
     }
 
     private void registerResources(
-            Map<ResourceUri, URL> stagingResources, boolean addToClassLoader) {
+            Map<ResourceUri, URL> stagingResources,
+            boolean addToClassLoader,
+            Map<ResourceUri, URL> resourceInfos) {
         // register resource in batch
         stagingResources.forEach(
                 (resourceUri, url) -> {

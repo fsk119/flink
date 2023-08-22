@@ -47,9 +47,9 @@ import org.apache.flink.table.planner.plan.nodes.physical.FlinkPhysicalRel
 import org.apache.flink.table.planner.plan.optimize.Optimizer
 import org.apache.flink.table.planner.sinks.DataStreamTableSink
 import org.apache.flink.table.planner.sinks.TableSinkUtils.{inferSinkPhysicalSchema, validateLogicalPhysicalTypesCompatible, validateTableSink}
+import org.apache.flink.table.planner.utils.{PlannerResourceFinderUtilImpl, TableConfigUtils}
 import org.apache.flink.table.planner.utils.InternalConfigOptions.{TABLE_QUERY_CURRENT_DATABASE, TABLE_QUERY_START_EPOCH_TIME, TABLE_QUERY_START_LOCAL_TIME}
 import org.apache.flink.table.planner.utils.JavaScalaConversionUtil.{toJava, toScala}
-import org.apache.flink.table.planner.utils.TableConfigUtils
 import org.apache.flink.table.runtime.generated.CompileUtils
 import org.apache.flink.table.sinks.TableSink
 import org.apache.flink.table.types.utils.LegacyTypeInfoDataTypeConverter
@@ -98,6 +98,7 @@ abstract class PlannerBase(
 
   // temporary utility until we don't use planner expressions anymore
   functionCatalog.setPlannerTypeInferenceUtil(PlannerTypeInferenceUtilImpl.INSTANCE)
+  functionCatalog.setResourceFinder(new PlannerResourceFinderUtilImpl(op => translateToRel(op)))
 
   private var parserFactory: ParserFactory = _
   private var parser: Parser = _

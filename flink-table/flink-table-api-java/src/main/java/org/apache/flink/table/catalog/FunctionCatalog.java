@@ -25,6 +25,7 @@ import org.apache.flink.table.api.TableException;
 import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.catalog.exceptions.DatabaseNotExistException;
 import org.apache.flink.table.catalog.exceptions.FunctionNotExistException;
+import org.apache.flink.table.delegation.PlannerResourceFinderUtil;
 import org.apache.flink.table.catalog.exceptions.ProcedureNotExistException;
 import org.apache.flink.table.delegation.PlannerTypeInferenceUtil;
 import org.apache.flink.table.functions.AggregateFunction;
@@ -95,6 +96,10 @@ public final class FunctionCatalog {
 
     public void setPlannerTypeInferenceUtil(PlannerTypeInferenceUtil plannerTypeInferenceUtil) {
         this.plannerTypeInferenceUtil = plannerTypeInferenceUtil;
+    }
+
+    public void setResourceFinder(PlannerResourceFinderUtil plannerResourceFinderUtil) {
+        resourceManager.setPlannerResourceFinderUtil(plannerResourceFinderUtil);
     }
 
     /** Registers a temporary system function. */
@@ -721,7 +726,7 @@ public final class FunctionCatalog {
     public void registerFunctionJarResources(String functionName, List<ResourceUri> resourceUris) {
         try {
             if (!resourceUris.isEmpty()) {
-                resourceManager.registerJarResources(resourceUris);
+                resourceManager.registerFunctionJarResources(resourceUris);
             }
         } catch (Exception e) {
             throw new TableException(

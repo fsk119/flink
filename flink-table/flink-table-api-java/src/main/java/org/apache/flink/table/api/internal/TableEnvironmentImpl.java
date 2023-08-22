@@ -770,6 +770,7 @@ public class TableEnvironmentImpl implements TableEnvironmentInternal {
         List<Transformation<?>> transformations = planner.translatePlan(plan);
         List<String> sinkIdentifierNames =
                 deduplicateSinkIdentifierNames(plan.getSinkIdentifiers());
+        resourceManager.addJarConfiguration(tableConfig);
         return executeInternal(transformations, sinkIdentifierNames);
     }
 
@@ -860,6 +861,7 @@ public class TableEnvironmentImpl implements TableEnvironmentInternal {
 
         List<Transformation<?>> transformations = translate(mapOperations);
         List<String> sinkIdentifierNames = extractSinkIdentifierNames(mapOperations);
+        operations.forEach(op -> resourceManager.addJarConfiguration(op, tableConfig));
         return executeInternal(transformations, sinkIdentifierNames, jobStatusHookList);
     }
 
@@ -995,8 +997,6 @@ public class TableEnvironmentImpl implements TableEnvironmentInternal {
             List<JobStatusHook> jobStatusHookList) {
         final String defaultJobName = "insert-into_" + String.join(",", sinkIdentifierNames);
 
-        resourceManager.addJarConfiguration(tableConfig);
-
         // We pass only the configuration to avoid reconfiguration with the rootConfiguration
         Pipeline pipeline =
                 execEnv.createPipeline(
@@ -1043,7 +1043,7 @@ public class TableEnvironmentImpl implements TableEnvironmentInternal {
                 translate(Collections.singletonList(sinkOperation));
         final String defaultJobName = "collect";
 
-        resourceManager.addJarConfiguration(tableConfig);
+        resourceManager.addJarConfiguration(sinkOperation, tableConfig);
 
         // We pass only the configuration to avoid reconfiguration with the rootConfiguration
         Pipeline pipeline =

@@ -35,7 +35,7 @@ public class ShowJarsOperation implements ShowOperation {
     @Override
     public TableResultInternal execute(Context ctx) {
         String[] jars =
-                ctx.getResourceManager().getResources().keySet().stream()
+                ctx.getResourceManager().getJarResources().keySet().stream()
                         .map(ResourceUri::getUri)
                         .toArray(String[]::new);
         return buildStringArrayResult("jars", jars);

@@ -112,7 +112,7 @@ public class ResourceManagerTest {
                 Collections.singletonMap(
                         resourceUri, resourceManager.getURLFromPath(new Path(udfJar.getPath())));
 
-        assertEquals(expected, resourceManager.getResources());
+        assertEquals(expected, resourceManager.getJarResources());
 
         // test load class
         final Class<?> clazz1 = Class.forName(GENERATED_LOWER_UDF_CLASS, false, userClassLoader);
@@ -137,14 +137,14 @@ public class ResourceManagerTest {
                 Collections.singletonMap(
                         normalizedResource,
                         resourceManager.getURLFromPath(new Path(localFilePath)));
-        assertThat(resourceManager.getResources()).containsExactlyEntriesOf(actualResource);
+        assertThat(resourceManager.getJarResources()).containsExactlyEntriesOf(actualResource);
 
         // register the same file resource repeatedly, but without scheme
         assertThat(
                         resourceManager.registerFileResource(
                                 new ResourceUri(ResourceType.FILE, file.getPath())))
                 .isEqualTo(localFilePath);
-        assertThat(resourceManager.getResources()).containsExactlyEntriesOf(actualResource);
+        assertThat(resourceManager.getJarResources()).containsExactlyEntriesOf(actualResource);
 
         // register the same file resource repeatedly, use relative path as uri
         assertThat(
@@ -157,7 +157,7 @@ public class ResourceManagerTest {
                                                 .relativize(file.toPath())
                                                 .toString())))
                 .isEqualTo(localFilePath);
-        assertThat(resourceManager.getResources()).containsExactlyEntriesOf(actualResource);
+        assertThat(resourceManager.getJarResources()).containsExactlyEntriesOf(actualResource);
     }
 
     @Test
@@ -187,7 +187,7 @@ public class ResourceManagerTest {
                         new ResourceUri(ResourceType.JAR, udfJar.getPath()),
                         resourceManager.getURLFromPath(new Path(udfJar.getPath())));
 
-        assertEquals(expected, resourceManager.getResources());
+        assertEquals(expected, resourceManager.getJarResources());
 
         // test load class
         final Class<?> clazz1 = Class.forName(GENERATED_LOWER_UDF_CLASS, false, userClassLoader);
