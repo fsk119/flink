@@ -182,6 +182,15 @@ public class ResourceManager implements Closeable {
         return Collections.unmodifiableMap(resourceInfos);
     }
 
+    public URL getLocalJarResource(ResourceUri uri) {
+        if (uri.getResourceType() != ResourceType.JAR) {
+            throw new IllegalArgumentException("Only supports to look up the jar resource.");
+        }
+
+        URL url = functionJarInfos.get(uri);
+        return url == null ? anonymousJarInfos.get(uri) : url;
+    }
+
     /**
      * Get the local jars' URL. Return the URL corresponding to downloaded jars in the local file
      * system for the remote jar. For the local jar, return the registered URL.

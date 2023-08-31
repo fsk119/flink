@@ -22,9 +22,7 @@ import org.apache.flink.table.delegation.PlannerResourceFinderUtil;
 import org.apache.flink.table.operations.ModifyOperation;
 import org.apache.flink.table.planner.functions.bridging.BridgingSqlAggFunction;
 import org.apache.flink.table.planner.functions.bridging.BridgingSqlFunction;
-import org.apache.flink.table.planner.functions.utils.AggSqlFunction;
-import org.apache.flink.table.planner.functions.utils.ScalarSqlFunction;
-import org.apache.flink.table.planner.functions.utils.TableSqlFunction;
+import org.apache.flink.table.resource.ResourceUri;
 
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelShuttleImpl;
@@ -40,16 +38,21 @@ import org.apache.calcite.rex.RexVisitorImpl;
 import org.apache.calcite.sql.SqlFunction;
 
 import java.net.URL;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
 
 public class PlannerResourceFinderUtilImpl implements PlannerResourceFinderUtil {
 
     Function<ModifyOperation, RelNode> toRel;
+    Function<ResourceUri, URL> resourceLookup;
 
-    public PlannerResourceFinderUtilImpl(Function<ModifyOperation, RelNode> toRel) {
+    public PlannerResourceFinderUtilImpl(
+            Function<ModifyOperation, RelNode> toRel, Function<ResourceUri, URL> resourceLookup) {
         this.toRel = toRel;
+        this.resourceLookup = resourceLookup;
     }
 
     @Override
@@ -59,32 +62,27 @@ public class PlannerResourceFinderUtilImpl implements PlannerResourceFinderUtil 
         return resources;
     }
 
-    private static void add(Set<URL> resources, SqlFunction function) {
+    private void add(Set<URL> resources, SqlFunction function) {
+        List<ResourceUri> functionResources;
         if (function instanceof BridgingSqlFunction) {
-            addResourceFile(resources, ((BridgingSqlFunction) function).getDefinition());
+            functionResources =
+                    ((BridgingSqlFunction) function).getResolvedFunction().getFunctionResources();
         } else if (function instanceof BridgingSqlAggFunction) {
-            addResourceFile(resources, ((BridgingSqlAggFunction) function).getDefinition());
-        } else if (function instanceof ScalarSqlFunction) {
-            addResourceFile(resources, ((ScalarSqlFunction) function).scalarFunction());
-        } else if (function instanceof AggSqlFunction) {
-            addResourceFile(resources, ((AggSqlFunction) function).aggregateFunction());
-        } else if (function instanceof TableSqlFunction) {
-            addResourceFile(resources, ((TableSqlFunction) function).udtf());
+            functionResources =
+                    ((BridgingSqlAggFunction) function)
+                            .getResolvedFunction()
+                            .getFunctionResources();
+        } else {
+            functionResources = Collections.emptyList();
         }
-    }
-
-    private static void addResourceFile(Set<URL> resources, Object obj) {
-        resources.add(obj.getClass().getProtectionDomain().getCodeSource().getLocation());
+        functionResources.forEach(resource -> resources.add(resourceLookup.apply(resource)));
     }
 
     // --------------------------------------------------------------------------------------------
     // RelNode Utils
     // --------------------------------------------------------------------------------------------
 
-    // Don't use this util to find which connector is used because some connector may use multiple
-    // jars
-    // For example, Kafka Connector uses both kafka jar and json jar.
-    private static class RelNodeResourceFinder extends RelShuttleImpl {
+    private class RelNodeResourceFinder extends RelShuttleImpl {
 
         private final Set<URL> usedResources;
         private final RexNodeResourceFinder finder;
@@ -136,9 +134,18 @@ public class PlannerResourceFinderUtilImpl implements PlannerResourceFinderUtil 
             match.getMeasures().values().forEach(measure -> measure.accept(finder));
             return super.visit(match);
         }
+
+        @Override
+        public RelNode visit(RelNode other) {
+            if (other instanceof TableFunctionScan) {
+                // TableFunctionScan doesn't override accept.
+                this.visit((TableFunctionScan) other);
+            }
+            return super.visit(other);
+        }
     }
 
-    private static class RexNodeResourceFinder extends RexVisitorImpl<Void> {
+    private class RexNodeResourceFinder extends RexVisitorImpl<Void> {
 
         private final Set<URL> resources;
 
@@ -153,6 +160,8 @@ public class PlannerResourceFinderUtilImpl implements PlannerResourceFinderUtil 
                 SqlFunction function = (SqlFunction) (call.getOperator());
                 add(resources, function);
             }
+
+            call.getOperands().forEach(operand -> operand.accept(this));
             return null;
         }
     }

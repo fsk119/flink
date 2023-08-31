@@ -430,6 +430,10 @@ public final class FunctionCatalog {
         }
     }
 
+    public ResourceManager getResourceManager() {
+        return resourceManager;
+    }
+
     // --------------------------------------------------------------------------------------------
     // Legacy function handling before FLIP-65
     // --------------------------------------------------------------------------------------------
@@ -610,7 +614,8 @@ public final class FunctionCatalog {
             return Optional.of(
                     ContextResolvedFunction.temporary(
                             FunctionIdentifier.of(oi),
-                            getFunctionDefinition(oi.getObjectName(), potentialResult)));
+                            getFunctionDefinition(oi.getObjectName(), potentialResult),
+                            potentialResult.getFunctionResources()));
         }
 
         Optional<Catalog> catalogOptional = catalogManager.getCatalog(oi.getCatalogName());
@@ -639,7 +644,10 @@ public final class FunctionCatalog {
                 }
 
                 return Optional.of(
-                        ContextResolvedFunction.permanent(FunctionIdentifier.of(oi), fd));
+                        ContextResolvedFunction.permanent(
+                                FunctionIdentifier.of(oi),
+                                fd,
+                                catalogFunction.getFunctionResources()));
             } catch (FunctionNotExistException e) {
                 // Ignore
             }
@@ -661,7 +669,8 @@ public final class FunctionCatalog {
                     ContextResolvedFunction.temporary(
                             FunctionIdentifier.of(funcName),
                             getFunctionDefinition(
-                                    normalizedName, tempSystemFunctions.get(normalizedName))));
+                                    normalizedName, tempSystemFunctions.get(normalizedName)),
+                            tempSystemFunctions.get(normalizedName).getFunctionResources()));
         }
 
         Optional<FunctionDefinition> candidate =

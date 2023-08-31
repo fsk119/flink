@@ -26,11 +26,13 @@ import org.apache.flink.table.functions.FunctionDefinition;
 import org.apache.flink.table.functions.FunctionIdentifier;
 import org.apache.flink.table.module.CoreModule;
 import org.apache.flink.table.module.Module;
+import org.apache.flink.table.resource.ResourceUri;
 import org.apache.flink.table.types.DataType;
 import org.apache.flink.util.Preconditions;
 
 import javax.annotation.Nullable;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -68,42 +70,63 @@ public final class ContextResolvedFunction {
 
     private final FunctionDefinition functionDefinition;
 
+    private final List<ResourceUri> functionResources;
+
     public static ContextResolvedFunction permanent(
             FunctionIdentifier functionIdentifier, FunctionDefinition functionDefinition) {
+        return permanent(functionIdentifier, functionDefinition, Collections.emptyList());
+    }
+
+    public static ContextResolvedFunction permanent(
+            FunctionIdentifier functionIdentifier,
+            FunctionDefinition functionDefinition,
+            List<ResourceUri> functionResources) {
         Preconditions.checkNotNull(
                 functionIdentifier,
                 "Function identifier should not be null for a permanent function.");
-        return new ContextResolvedFunction(false, functionIdentifier, functionDefinition);
+        return new ContextResolvedFunction(
+                false, functionIdentifier, functionDefinition, functionResources);
     }
 
     public static ContextResolvedFunction temporary(
             FunctionIdentifier functionIdentifier, FunctionDefinition functionDefinition) {
+        return temporary(functionIdentifier, functionDefinition, Collections.emptyList());
+    }
+
+    public static ContextResolvedFunction temporary(
+            FunctionIdentifier functionIdentifier,
+            FunctionDefinition functionDefinition,
+            List<ResourceUri> functionResources) {
         Preconditions.checkNotNull(
                 functionIdentifier,
                 "Function identifier should not be null for a temporary function.");
-        return new ContextResolvedFunction(true, functionIdentifier, functionDefinition);
+        return new ContextResolvedFunction(
+                true, functionIdentifier, functionDefinition, functionResources);
     }
 
     public static ContextResolvedFunction anonymous(FunctionDefinition functionDefinition) {
-        return new ContextResolvedFunction(true, null, functionDefinition);
+        return new ContextResolvedFunction(true, null, functionDefinition, Collections.emptyList());
     }
 
     public static ContextResolvedFunction fromCallExpression(CallExpression callExpression) {
         return new ContextResolvedFunction(
                 callExpression.isTemporary(),
                 callExpression.getFunctionIdentifier().orElse(null),
-                callExpression.getFunctionDefinition());
+                callExpression.getFunctionDefinition(),
+                Collections.emptyList());
     }
 
     private ContextResolvedFunction(
             boolean isTemporary,
             @Nullable FunctionIdentifier functionIdentifier,
-            FunctionDefinition functionDefinition) {
+            FunctionDefinition functionDefinition,
+            List<ResourceUri> functionResources) {
         this.isTemporary = isTemporary;
         this.functionIdentifier = functionIdentifier;
         this.functionDefinition =
                 Preconditions.checkNotNull(
                         functionDefinition, "Function definition must not be null.");
+        this.functionResources = functionResources;
     }
 
     public boolean isAnonymous() {
@@ -125,6 +148,10 @@ public final class ContextResolvedFunction {
 
     public FunctionDefinition getDefinition() {
         return functionDefinition;
+    }
+
+    public List<ResourceUri> getFunctionResources() {
+        return functionResources;
     }
 
     public String asSummaryString() {
@@ -160,11 +187,12 @@ public final class ContextResolvedFunction {
         ContextResolvedFunction that = (ContextResolvedFunction) o;
         return isTemporary == that.isTemporary
                 && Objects.equals(functionIdentifier, that.functionIdentifier)
-                && functionDefinition.equals(that.functionDefinition);
+                && functionDefinition.equals(that.functionDefinition)
+                && Objects.equals(functionResources, that.functionResources);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(isTemporary, functionIdentifier, functionDefinition);
+        return Objects.hash(isTemporary, functionIdentifier, functionDefinition, functionResources);
     }
 }

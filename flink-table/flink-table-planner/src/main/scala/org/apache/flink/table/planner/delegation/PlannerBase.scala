@@ -98,7 +98,10 @@ abstract class PlannerBase(
 
   // temporary utility until we don't use planner expressions anymore
   functionCatalog.setPlannerTypeInferenceUtil(PlannerTypeInferenceUtilImpl.INSTANCE)
-  functionCatalog.setResourceFinder(new PlannerResourceFinderUtilImpl(op => translateToRel(op)))
+  functionCatalog.setResourceFinder(
+    new PlannerResourceFinderUtilImpl(
+      op => translateToRel(op),
+      uri => functionCatalog.getResourceManager.getLocalJarResource(uri)))
 
   private var parserFactory: ParserFactory = _
   private var parser: Parser = _
