@@ -45,7 +45,7 @@ public class KubernetesApplicationClusterEntrypointTest {
     public void setup() {
         configuration = new Configuration();
         configuration.setString(
-                ArtifactFetchOptions.USER_ARTIFACTS_BASE_DIR, tempDir.toAbsolutePath().toString());
+                ArtifactFetchOptions.ARTIFACT_BASE_DIR, tempDir.toAbsolutePath().toString());
         configuration.setString(KubernetesConfigOptions.NAMESPACE, TEST_NAMESPACE);
         configuration.setString(KubernetesConfigOptions.CLUSTER_ID, TEST_CLUSTER_ID);
     }

@@ -56,17 +56,8 @@ public class DefaultPackagedProgramRetriever implements PackagedProgramRetriever
     private final Configuration configuration;
 
     /**
-     * Creates a {@code PackageProgramRetrieverImpl} with the given parameters.
-     *
-     * @param userLibDir The user library directory that is used for generating the user classpath
-     *     if specified. The system classpath is used if not specified.
-     * @param jobClassName The job class that will be used if specified. The classpath is used to
-     *     detect any main class if not specified.
-     * @param programArgs The program arguments.
-     * @param configuration The Flink configuration for the given job.
-     * @return The {@code PackageProgramRetrieverImpl} that can be used to create a {@link
-     *     PackagedProgram} instance.
-     * @throws FlinkException If something goes wrong during instantiation.
+     * See ${@link DefaultPackagedProgramRetriever#create(File, File, File, String, String[],
+     * Configuration)}.
      */
     public static DefaultPackagedProgramRetriever create(
             @Nullable File userLibDir,
@@ -78,10 +69,26 @@ public class DefaultPackagedProgramRetriever implements PackagedProgramRetriever
     }
 
     /**
+     * See ${@link DefaultPackagedProgramRetriever#create(File, File, File, String, String[],
+     * Configuration)}.
+     */
+    public static DefaultPackagedProgramRetriever create(
+            @Nullable File userLibDir,
+            @Nullable File jarFile,
+            @Nullable String jobClassName,
+            String[] programArgs,
+            Configuration configuration)
+            throws FlinkException {
+        return create(userLibDir, null, jarFile, jobClassName, programArgs, configuration);
+    }
+
+    /**
      * Creates a {@code PackageProgramRetrieverImpl} with the given parameters.
      *
      * @param userLibDir The user library directory that is used for generating the user classpath
      *     if specified. The system classpath is used if not specified.
+     * @param userArtifactDir The user artifact directory that holds remote or CLI specified
+     *     additional artifacts, which should be added to the user classpath if there are any.
      * @param jarFile The jar archive expected to contain the job class included; {@code null} if
      *     the job class is on the system classpath.
      * @param jobClassName The job class to use; if {@code null} the user classpath (or, if not set,
@@ -94,6 +101,7 @@ public class DefaultPackagedProgramRetriever implements PackagedProgramRetriever
      */
     public static DefaultPackagedProgramRetriever create(
             @Nullable File userLibDir,
+            @Nullable File userArtifactDir,
             @Nullable File jarFile,
             @Nullable String jobClassName,
             String[] programArgs,
@@ -101,12 +109,16 @@ public class DefaultPackagedProgramRetriever implements PackagedProgramRetriever
             throws FlinkException {
         List<URL> userClasspaths;
         try {
-            final List<URL> classpathsFromUserLibDir = getClasspathsFromUserLibDir(userLibDir);
+            final List<URL> classpathsFromUserLibDir =
+                    getClasspathsFromUserDir(userLibDir, jarFile);
+            final List<URL> classpathsFromUserArtifactDir =
+                    getClasspathsFromUserDir(userArtifactDir, jarFile);
             final List<URL> classpathsFromConfiguration =
                     getClasspathsFromConfiguration(configuration);
 
             final List<URL> classpaths = new ArrayList<>();
             classpaths.addAll(classpathsFromUserLibDir);
+            classpaths.addAll(classpathsFromUserArtifactDir);
             classpaths.addAll(classpathsFromConfiguration);
 
             userClasspaths = Collections.unmodifiableList(classpaths);
@@ -116,7 +128,7 @@ public class DefaultPackagedProgramRetriever implements PackagedProgramRetriever
 
         final EntryClassInformationProvider entryClassInformationProvider =
                 createEntryClassInformationProvider(
-                        userLibDir == null ? null : userClasspaths,
+                        (userLibDir == null && userArtifactDir == null) ? null : userClasspaths,
                         jarFile,
                         jobClassName,
                         programArgs);
@@ -216,15 +228,19 @@ public class DefaultPackagedProgramRetriever implements PackagedProgramRetriever
         }
     }
 
-    private static List<URL> getClasspathsFromUserLibDir(@Nullable File userLibDir)
-            throws IOException {
-        if (userLibDir == null) {
+    private static List<URL> getClasspathsFromUserDir(
+            @Nullable File userDir, @Nullable File jarFile) throws IOException {
+        if (userDir == null) {
             return Collections.emptyList();
         }
 
         final Path workingDirectory = FileUtils.getCurrentWorkingDirectory();
         final List<URL> relativeJarURLs =
-                FileUtils.listFilesInDirectory(userLibDir.toPath(), FileUtils::isJarFile).stream()
+                FileUtils.listFilesInDirectory(
+                                userDir.toPath(),
+                                (file) ->
+                                        FileUtils.isJarFile(file) && !file.toFile().equals(jarFile))
+                        .stream()
                         .map(path -> FileUtils.relativizePath(workingDirectory, path))
                         .map(FunctionUtils.uncheckedFunction(FileUtils::toURL))
                         .collect(Collectors.toList());

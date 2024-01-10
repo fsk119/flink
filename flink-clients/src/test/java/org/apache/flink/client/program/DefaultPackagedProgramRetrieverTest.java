@@ -70,6 +70,10 @@ class DefaultPackagedProgramRetrieverTest {
     ClasspathProviderExtension testJobEntryClassClasspathProvider =
             ClasspathProviderExtension.createWithTestJobOnly();
 
+    @RegisterExtension
+    ClasspathProviderExtension additionalArtifactClasspathProvider =
+            ClasspathProviderExtension.createWithAdditionalArtifact();
+
     @Test
     void testDeriveEntryClassInformationForCustomJar()
             throws FlinkException, MalformedURLException {
@@ -471,6 +475,64 @@ class DefaultPackagedProgramRetrieverTest {
         final List<String> expectedClasspath =
                 extractRelativizedURLsForJarsFromDirectory(
                         singleEntryClassClasspathProvider.getDirectory());
+
+        assertThat(actualClasspath).isEqualTo(expectedClasspath);
+    }
+
+    @Test
+    void testRetrieveFromJarFileWithArtifactLib()
+            throws IOException, FlinkException, ProgramInvocationException {
+        final PackagedProgramRetriever retrieverUnderTest =
+                DefaultPackagedProgramRetriever.create(
+                        null,
+                        additionalArtifactClasspathProvider.getDirectory(),
+                        // the testJob jar is not on the user classpath
+                        testJobEntryClassClasspathProvider.getJobJar(),
+                        null,
+                        ClasspathProviderExtension.parametersForTestJob("suffix"),
+                        new Configuration());
+        final JobGraph jobGraph = retrieveJobGraph(retrieverUnderTest, new Configuration());
+
+        assertThat(jobGraph.getUserJars())
+                .contains(
+                        new org.apache.flink.core.fs.Path(
+                                testJobEntryClassClasspathProvider.getJobJar().toURI()));
+        final List<String> actualClasspath =
+                jobGraph.getClasspaths().stream().map(URL::toString).collect(Collectors.toList());
+        final List<String> expectedClasspath =
+                extractRelativizedURLsForJarsFromDirectory(
+                        additionalArtifactClasspathProvider.getDirectory());
+
+        assertThat(actualClasspath).isEqualTo(expectedClasspath);
+    }
+
+    @Test
+    void testRetrieveFromJarFileWithUserAndArtifactLib()
+            throws IOException, FlinkException, ProgramInvocationException {
+        final PackagedProgramRetriever retrieverUnderTest =
+                DefaultPackagedProgramRetriever.create(
+                        singleEntryClassClasspathProvider.getDirectory(),
+                        additionalArtifactClasspathProvider.getDirectory(),
+                        // the testJob jar is not on the user classpath
+                        testJobEntryClassClasspathProvider.getJobJar(),
+                        null,
+                        ClasspathProviderExtension.parametersForTestJob("suffix"),
+                        new Configuration());
+        final JobGraph jobGraph = retrieveJobGraph(retrieverUnderTest, new Configuration());
+
+        assertThat(jobGraph.getUserJars())
+                .contains(
+                        new org.apache.flink.core.fs.Path(
+                                testJobEntryClassClasspathProvider.getJobJar().toURI()));
+        final List<String> actualClasspath =
+                jobGraph.getClasspaths().stream().map(URL::toString).collect(Collectors.toList());
+        final List<String> expectedClasspath = new ArrayList<>();
+        expectedClasspath.addAll(
+                extractRelativizedURLsForJarsFromDirectory(
+                        singleEntryClassClasspathProvider.getDirectory()));
+        expectedClasspath.addAll(
+                extractRelativizedURLsForJarsFromDirectory(
+                        additionalArtifactClasspathProvider.getDirectory()));
 
         assertThat(actualClasspath).isEqualTo(expectedClasspath);
     }
