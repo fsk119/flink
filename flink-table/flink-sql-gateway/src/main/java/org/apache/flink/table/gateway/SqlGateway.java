@@ -63,7 +63,8 @@ public class SqlGateway {
     public void start() throws Exception {
         sessionManager.start();
 
-        SqlGatewayService sqlGatewayService = new SqlGatewayServiceImpl(sessionManager);
+        SqlGatewayService sqlGatewayService =
+                new SqlGatewayServiceImpl(defaultConfig, sessionManager);
         try {
             endpoints.addAll(
                     SqlGatewayEndpointFactoryUtils.createSqlGatewayEndpoint(

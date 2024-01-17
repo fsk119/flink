@@ -19,6 +19,9 @@
 package org.apache.flink.table.gateway.service;
 
 import org.apache.flink.annotation.VisibleForTesting;
+import org.apache.flink.client.deployment.DefaultClusterClientServiceLoader;
+import org.apache.flink.client.deployment.application.ApplicationConfiguration;
+import org.apache.flink.client.deployment.application.cli.ApplicationClusterDeployer;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.table.catalog.CatalogBaseTable.TableKind;
 import org.apache.flink.table.catalog.ObjectIdentifier;
@@ -39,6 +42,7 @@ import org.apache.flink.table.gateway.api.results.TableInfo;
 import org.apache.flink.table.gateway.api.session.SessionEnvironment;
 import org.apache.flink.table.gateway.api.session.SessionHandle;
 import org.apache.flink.table.gateway.api.utils.SqlGatewayException;
+import org.apache.flink.table.gateway.service.application.SqlScriptRunner;
 import org.apache.flink.table.gateway.service.operation.OperationManager;
 import org.apache.flink.table.gateway.service.session.Session;
 import org.apache.flink.table.gateway.service.session.SessionManager;
@@ -57,9 +61,11 @@ public class SqlGatewayServiceImpl implements SqlGatewayService {
 
     private static final Logger LOG = LoggerFactory.getLogger(SqlGatewayServiceImpl.class);
 
+    private final Configuration defaultConfig;
     private final SessionManager sessionManager;
 
-    public SqlGatewayServiceImpl(SessionManager sessionManager) {
+    public SqlGatewayServiceImpl(Configuration defaultConfig, SessionManager sessionManager) {
+        this.defaultConfig = defaultConfig;
         this.sessionManager = sessionManager;
     }
 
@@ -365,6 +371,16 @@ public class SqlGatewayServiceImpl implements SqlGatewayService {
             LOG.error("Failed to get statement completion candidates.", t);
             throw new SqlGatewayException("Failed to get statement completion candidates.", t);
         }
+    }
+
+    public void deployCluster(String statements, Configuration configuration) throws Exception {
+        DefaultClusterClientServiceLoader serviceLoader = new DefaultClusterClientServiceLoader();
+        ApplicationConfiguration applicationConfiguration =
+                new ApplicationConfiguration(
+                        new String[] {statements}, SqlScriptRunner.class.getName());
+        Configuration mergedConfig = new Configuration(defaultConfig);
+        mergedConfig.addAll(configuration);
+        new ApplicationClusterDeployer(serviceLoader).run(mergedConfig, applicationConfiguration);
     }
 
     // --------------------------------------------------------------------------------------------

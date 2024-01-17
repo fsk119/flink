@@ -170,6 +170,10 @@ public class SessionManagerImpl implements SessionManager {
         closeSession(session);
     }
 
+    public DefaultContext getDefaultContext() {
+        return defaultContext;
+    }
+
     // ------------------------------------------------------------------------------------------
     // Utilities
     // ------------------------------------------------------------------------------------------
