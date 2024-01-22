@@ -127,6 +127,12 @@
 			<type>test-jar</type>
 			<scope>test</scope>
 		</dependency>
+        <dependency>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>flink-kubernetes</artifactId>
+            <version>${project.version}</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -152,6 +158,16 @@
                     </configuration>
                 </execution>
             </executions>
+        </plugin>
+        <plugin>
+            <artifactId>maven-jar-plugin</artifactId>
+            <configuration>
+                <archive>
+                    <manifestEntries>
+                        <Main-Class>org.apache.flink.table.gateway.service.application.SqlScriptRunner</Main-Class>
+                    </manifestEntries>
+                </archive>
+            </configuration>
         </plugin>
         <!-- Make test classes available to other modules. -->
         <plugin>

@@ -25,6 +25,7 @@ import org.apache.flink.client.deployment.ClusterClientFactory;
 import org.apache.flink.client.deployment.ClusterClientServiceLoader;
 import org.apache.flink.client.deployment.ClusterDescriptor;
 import org.apache.flink.client.deployment.DefaultClusterClientServiceLoader;
+import org.apache.flink.client.deployment.application.executors.EmbeddedExecutorServiceLoader;
 import org.apache.flink.client.program.ClusterClient;
 import org.apache.flink.configuration.CheckpointingOptions;
 import org.apache.flink.configuration.Configuration;
@@ -194,7 +195,7 @@ public class OperationExecutor {
     public ResultFetcher executeStatement(OperationHandle handle, String statement) {
         // Instantiate the TableEnvironment lazily
         ResourceManager resourceManager = sessionContext.getSessionState().resourceManager.copy();
-        TableEnvironmentInternal tableEnv = getTableEnvironment(resourceManager);
+        TableEnvironmentInternal tableEnv = getTableEnvironment(resourceManager, false);
         PlanCacheManager planCacheManager = sessionContext.getPlanCacheManager();
         CachedPlan cachedPlan = null;
         Operation op = null;
@@ -343,10 +344,15 @@ public class OperationExecutor {
     // --------------------------------------------------------------------------------------------
 
     public TableEnvironmentInternal getTableEnvironment() {
-        return getTableEnvironment(sessionContext.getSessionState().resourceManager);
+        return getTableEnvironment(sessionContext.getSessionState().resourceManager, false);
     }
 
-    public TableEnvironmentInternal getTableEnvironment(ResourceManager resourceManager) {
+    public TableEnvironmentInternal getTableEnvironment(boolean isEmbedded) {
+        return getTableEnvironment(sessionContext.getSessionState().resourceManager, isEmbedded);
+    }
+
+    public TableEnvironmentInternal getTableEnvironment(
+            ResourceManager resourceManager, boolean isEmbedded) {
         // checks the value of RUNTIME_MODE
         Configuration operationConfig = sessionContext.getSessionConf().clone();
         operationConfig.addAll(executionConfig);
@@ -358,8 +364,10 @@ public class OperationExecutor {
         // to execute existing StreamGraph.
         // This requires StreamExecutionEnvironment to have a full flink configuration.
         StreamExecutionEnvironment streamExecEnv =
-                new StreamExecutionEnvironment(
-                        operationConfig, sessionContext.getUserClassloader());
+                isEmbedded
+                        ? StreamExecutionEnvironment.getExecutionEnvironment()
+                        : new StreamExecutionEnvironment(
+                                operationConfig, sessionContext.getUserClassloader());
 
         TableConfig tableConfig = TableConfig.getDefault();
         tableConfig.setRootConfiguration(sessionContext.getDefaultContext().getFlinkConfig());

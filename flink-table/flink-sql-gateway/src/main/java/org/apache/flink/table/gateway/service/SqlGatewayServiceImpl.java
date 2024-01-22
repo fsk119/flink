@@ -23,6 +23,7 @@ import org.apache.flink.client.deployment.DefaultClusterClientServiceLoader;
 import org.apache.flink.client.deployment.application.ApplicationConfiguration;
 import org.apache.flink.client.deployment.application.cli.ApplicationClusterDeployer;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.table.SqlDriver;
 import org.apache.flink.table.catalog.CatalogBaseTable.TableKind;
 import org.apache.flink.table.catalog.ObjectIdentifier;
 import org.apache.flink.table.catalog.ResolvedCatalogBaseTable;
@@ -376,8 +377,7 @@ public class SqlGatewayServiceImpl implements SqlGatewayService {
     public void deployCluster(String statements, Configuration configuration) throws Exception {
         DefaultClusterClientServiceLoader serviceLoader = new DefaultClusterClientServiceLoader();
         ApplicationConfiguration applicationConfiguration =
-                new ApplicationConfiguration(
-                        new String[] {statements}, SqlScriptRunner.class.getName());
+                new ApplicationConfiguration(new String[] {statements}, SqlDriver.class.getName());
         Configuration mergedConfig = new Configuration(defaultConfig);
         mergedConfig.addAll(configuration);
         new ApplicationClusterDeployer(serviceLoader).run(mergedConfig, applicationConfiguration);

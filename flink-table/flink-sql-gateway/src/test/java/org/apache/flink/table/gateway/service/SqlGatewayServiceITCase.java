@@ -19,12 +19,17 @@
 package org.apache.flink.table.gateway.service;
 
 import org.apache.flink.api.common.JobID;
+import org.apache.flink.client.deployment.application.ApplicationConfiguration;
 import org.apache.flink.client.program.rest.RestClusterClient;
 import org.apache.flink.configuration.CheckpointingOptions;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.configuration.DeploymentOptions;
+import org.apache.flink.configuration.GlobalConfiguration;
 import org.apache.flink.configuration.PipelineOptions;
+import org.apache.flink.configuration.YamlParserUtils;
 import org.apache.flink.core.testutils.CommonTestUtils;
 import org.apache.flink.core.testutils.FlinkAssertions;
+import org.apache.flink.kubernetes.entrypoint.KubernetesApplicationClusterEntrypoint;
 import org.apache.flink.runtime.testutils.MiniClusterResourceConfiguration;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.TableEnvironment;
@@ -103,6 +108,7 @@ import java.util.concurrent.FutureTask;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.apache.flink.client.cli.ArtifactFetchOptions.ARTIFACT_LIST;
 import static org.apache.flink.core.testutils.FlinkAssertions.anyCauseMatches;
 import static org.apache.flink.core.testutils.FlinkAssertions.assertThatChainOfCauses;
 import static org.apache.flink.table.api.ResultKind.SUCCESS_WITH_CONTENT;
@@ -509,6 +515,36 @@ public class SqlGatewayServiceITCase {
         assertThat(jobRow.getString(2)).hasToString("RUNNING");
         assertThat(jobRow.getTimestamp(3, 3).getMillisecond())
                 .isBetween(timeOpStart, timeOpSucceed);
+    }
+
+    @Test
+    void testDeployJob() throws Exception {
+        String sql =
+                "CREATE TABLE src (a INT) WITH ( 'connector' = 'datagen' );"
+                        + "CREATE TABLE sink (b INT) WITH ( 'connector' = 'blackhole' );"
+                        + "INSERT INTO sink SELECT * FROM src;";
+        Configuration configuration =
+                GlobalConfiguration.loadConfiguration(
+                        "/Users/ohmeatball/Work/flink/flink-dist/target/flink-1.19-SNAPSHOT-bin/flink-1.19-SNAPSHOT/conf/");
+        configuration.set(ApplicationConfiguration.APPLICATION_ARGS, Arrays.asList(sql));
+        configuration.set(DeploymentOptions.TARGET, "kubernetes-application");
+        configuration.setString(
+                "kubernetes.container.image.ref", "fsk119/my_flink:flink-1.19-application-5");
+        configuration.set(ARTIFACT_LIST, Collections.emptyList());
+        configuration.setString("kubernetes.service-account", "flink-service-account");
+        configuration.set(PipelineOptions.JARS, Collections.emptyList());
+        service.deployCluster(sql, configuration);
+        Map<String, String> map = configuration.toMap();
+        YamlParserUtils.toYAMLString(map);
+        System.out.println(map);
+    }
+
+    @Test
+    void testDeploy2() {
+        Configuration configuration =
+                GlobalConfiguration.loadConfiguration(
+                        "/Users/ohmeatball/Work/flink/flink-dist/target/flink-1.19-SNAPSHOT-bin/flink-1.19-SNAPSHOT/conf/");
+        KubernetesApplicationClusterEntrypoint.fetchArtifacts(configuration);
     }
 
     // --------------------------------------------------------------------------------------------

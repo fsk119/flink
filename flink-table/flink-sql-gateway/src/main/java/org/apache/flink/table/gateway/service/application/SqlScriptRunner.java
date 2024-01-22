@@ -18,10 +18,11 @@
 
 package org.apache.flink.table.gateway.service.application;
 
+import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.configuration.Configuration;
-import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.gateway.api.session.SessionEnvironment;
 import org.apache.flink.table.gateway.api.session.SessionHandle;
+import org.apache.flink.table.gateway.rest.util.SqlGatewayRestAPIVersion;
 import org.apache.flink.table.gateway.service.context.DefaultContext;
 import org.apache.flink.table.gateway.service.context.SessionContext;
 import org.apache.flink.table.operations.Operation;
@@ -40,25 +41,27 @@ public class SqlScriptRunner {
 
     private static final Logger LOG = LoggerFactory.getLogger(SqlScriptRunner.class);
 
-    public static void run(String script) throws Exception {
-        // CC {@link ClientUtils#executeProgram }
-        Configuration configuration =
-                (Configuration)
-                        StreamExecutionEnvironment.getExecutionEnvironment(new Configuration())
-                                .getConfiguration();
+    public static void main(String[] args) throws Exception {
+        run(args[0]);
+    }
+
+    @VisibleForTesting
+    static void run(DefaultContext defaultContext, String script) {
         SessionContext sessionContext =
                 SessionContext.create(
-                        DefaultContext.load(configuration, Collections.emptyList(), true),
+                        defaultContext,
                         SessionHandle.create(),
-                        SessionEnvironment.newBuilder().build(),
+                        SessionEnvironment.newBuilder()
+                                .setSessionEndpointVersion(
+                                        SqlGatewayRestAPIVersion.getDefaultVersion())
+                                .build(),
                         Executors.newSingleThreadExecutor());
-
         SyntaxAnalyzer syntaxAnalyzer =
                 new SyntaxAnalyzer(
                         () ->
                                 sessionContext
                                         .createOperationExecutor(new Configuration())
-                                        .getTableEnvironment(),
+                                        .getTableEnvironment(true),
                         script);
 
         while (syntaxAnalyzer.hasNext()) {
@@ -70,8 +73,12 @@ public class SqlScriptRunner {
             }
             sessionContext
                     .createOperationExecutor(new Configuration())
-                    .getTableEnvironment()
+                    .getTableEnvironment(true)
                     .executeInternal(operation);
         }
+    }
+
+    public static void run(String script) throws Exception {
+        run(DefaultContext.load(new Configuration(), Collections.emptyList(), true), script);
     }
 }

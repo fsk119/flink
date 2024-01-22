@@ -48,8 +48,6 @@ import java.io.File;
 import java.util.Collections;
 import java.util.List;
 
-import static org.apache.flink.util.Preconditions.checkArgument;
-
 /** An {@link ApplicationClusterEntryPoint} for Kubernetes. */
 @Internal
 public final class KubernetesApplicationClusterEntrypoint extends ApplicationClusterEntryPoint {
@@ -141,21 +139,36 @@ public final class KubernetesApplicationClusterEntrypoint extends ApplicationClu
                 userLibDir, jobClassName, programArguments, configuration);
     }
 
-    private static ArtifactFetchManager.Result fetchArtifacts(Configuration configuration) {
+    public static ArtifactFetchManager.Result fetchArtifacts(Configuration configuration) {
         try {
+            System.out.println(configuration.toMap());
             String targetDir = generateJarDir(configuration);
             ArtifactFetchManager fetchMgr = new ArtifactFetchManager(configuration, targetDir);
 
-            List<String> uris = configuration.get(PipelineOptions.JARS);
-            checkArgument(uris.size() == 1, "Should only have one jar");
+            List<String> uris =
+                    configuration.getOptional(PipelineOptions.JARS).orElse(Collections.emptyList());
+            LOG.info("Get the jars.");
+            System.out.println("Get the jars");
             List<String> additionalUris =
                     configuration
                             .getOptional(ArtifactFetchOptions.ARTIFACT_LIST)
                             .orElse(Collections.emptyList());
-
-            return fetchMgr.fetchArtifacts(uris.get(0), additionalUris);
+            LOG.info("Get the artifacts.");
+            System.out.println("Get the artifacts");
+            if (uris.size() == 1) {
+                return fetchMgr.fetchArtifacts(uris.get(0), additionalUris);
+            } else if (uris.isEmpty()) {
+                return fetchMgr.fetchArtifacts(null, additionalUris);
+            } else {
+                throw new IllegalArgumentException();
+            }
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            try {
+                Thread.sleep(1000_000);
+            } catch (Exception ignore) {
+                // ignore
+            }
+            throw new RuntimeException("Failed to download dependency.", e);
         }
     }
 

@@ -142,7 +142,12 @@ public class SyntaxAnalyzer implements Iterator<Operation> {
                                         currentPaddingLineBuilder);
                         String sql = currentSqlBuilder.toString();
                         try {
-                            return analyze(previousPaddingSqlBuilder + sql);
+                            Operation operation = analyze(previousPaddingSqlBuilder + sql);
+                            previousPaddingSqlBuilder.append(currentPaddingSqlBuilder);
+                            previousPaddingSqlBuilder.append(currentPaddingLineBuilder);
+                            currentPaddingSqlBuilder.setLength(0);
+                            currentPaddingLineBuilder.setLength(0);
+                            return operation;
                         } catch (SqlParserEOFException e) {
                             if (position == statement.length() - 1) {
                                 throw e;
@@ -152,12 +157,7 @@ public class SyntaxAnalyzer implements Iterator<Operation> {
                             }
                         }
 
-                        //
-                        // previousPaddingSqlBuilder.append(currentPaddingSqlBuilder);
-                        //
-                        // previousPaddingSqlBuilder.append(currentPaddingLineBuilder);
-                        //                        currentPaddingSqlBuilder.setLength(0);
-                        //                        currentPaddingLineBuilder.setLength(0);
+
                     }
                     break;
                 default:
@@ -225,7 +225,7 @@ public class SyntaxAnalyzer implements Iterator<Operation> {
             if (state == State.NORMAL
                     && currentChar != ';'
                     && !Character.isWhitespace(currentChar)) {
-                return i - 1;
+                return i;
             }
 
             currentSqlBuilder.append(currentChar);
@@ -236,6 +236,6 @@ public class SyntaxAnalyzer implements Iterator<Operation> {
                 currentPaddingLineBuilder.append(" ");
             }
         }
-        return stmt.length() - 1;
+        return stmt.length();
     }
 }
