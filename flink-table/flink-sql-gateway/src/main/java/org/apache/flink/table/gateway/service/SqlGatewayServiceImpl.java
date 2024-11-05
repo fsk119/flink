@@ -443,8 +443,11 @@ public class SqlGatewayServiceImpl implements SqlGatewayService {
                                     .collect(Collectors.joining(";")));
                     break;
                 case "yarn-application":
-                    throw new UnsupportedOperationException(
-                            "Yarn doesn't support to ship artifacts to the cluster.");
+                    mergedConfig.setString(
+                            "yarn.ship-files",
+                            session.getResources().stream()
+                                    .map(URL::toString)
+                                    .collect(Collectors.joining(";")));
                 default:
                     throw new UnsupportedOperationException(
                             "Don't support to ship artifacts to unknown deployment target.");

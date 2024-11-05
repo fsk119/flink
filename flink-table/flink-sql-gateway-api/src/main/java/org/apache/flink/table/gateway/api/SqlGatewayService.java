@@ -323,6 +323,14 @@ public interface SqlGatewayService {
     List<String> completeStatement(SessionHandle sessionHandle, String statement, int position)
             throws SqlGatewayException;
 
+    /**
+     * Deploy the script in application mode.
+     *
+     * @param sessionHandle handle to identify the session.
+     * @param scriptPath path to the script.
+     * @param executionConfig to run the script.
+     * @return the cluster description.
+     */
     <ClusterID> ClusterID deployScript(
             SessionHandle sessionHandle,
             @Nullable Path scriptPath,
