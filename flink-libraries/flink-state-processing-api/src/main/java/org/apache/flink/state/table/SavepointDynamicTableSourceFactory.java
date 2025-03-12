@@ -75,11 +75,23 @@ import static org.apache.flink.table.factories.FactoryUtil.CONNECTOR;
 
 /** Dynamic source factory for {@link SavepointDynamicTableSource}. */
 public class SavepointDynamicTableSourceFactory implements DynamicTableSourceFactory {
+
+    private final boolean isFromCatalog;
+
+    public SavepointDynamicTableSourceFactory(boolean isFromCatalog) {
+        this.isFromCatalog = isFromCatalog;
+    }
+
+    public SavepointDynamicTableSourceFactory() {
+        this.isFromCatalog = false;
+    }
+
     @Override
     public DynamicTableSource createDynamicTableSource(Context context) {
-        if (context.getObjectIdentifier()
-                .toObjectPath()
-                .equals(new ObjectPath(STATE_INTERNAL_DATABASE, STATE_META_TABLE_NAME))) {
+        if (isFromCatalog
+                && context.getObjectIdentifier()
+                        .toObjectPath()
+                        .equals(new ObjectPath(STATE_INTERNAL_DATABASE, STATE_META_TABLE_NAME))) {
             return new ScanTableSource() {
                 @Override
                 public ChangelogMode getChangelogMode() {

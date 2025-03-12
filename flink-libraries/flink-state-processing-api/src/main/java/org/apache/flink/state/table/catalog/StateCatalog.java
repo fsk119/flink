@@ -60,7 +60,7 @@ public class StateCatalog extends AbstractCatalog {
 
     @Override
     public Optional<Factory> getFactory() {
-        return Optional.of(new SavepointDynamicTableSourceFactory());
+        return Optional.of(new SavepointDynamicTableSourceFactory(true));
     }
 
     @Override
