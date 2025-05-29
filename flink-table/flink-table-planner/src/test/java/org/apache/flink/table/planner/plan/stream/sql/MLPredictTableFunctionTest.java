@@ -79,7 +79,7 @@ public class MLPredictTableFunctionTest extends TableTestBase {
                         + "FROM TABLE(ML_PREDICT(INPUT => TABLE MyTable, "
                         + "MODEL => MODEL MyModel, "
                         + "ARGS  => DESCRIPTOR(a, b)))";
-        assertReachesRelConverter(sql);
+        util.verifyRelPlan(sql);
     }
 
     @Test
@@ -90,7 +90,7 @@ public class MLPredictTableFunctionTest extends TableTestBase {
                         + "MODEL  => MODEL MyModel, "
                         + "ARGS   => DESCRIPTOR(a, b),"
                         + "CONFIG => MAP['key', 'value']))";
-        assertReachesRelConverter(sql);
+        util.verifyRelPlan(sql);
     }
 
     @Test
@@ -98,7 +98,7 @@ public class MLPredictTableFunctionTest extends TableTestBase {
         String sql =
                 "SELECT *\n"
                         + "FROM TABLE(ML_PREDICT(TABLE MyTable, MODEL MyModel, DESCRIPTOR(a, b)))";
-        assertReachesRelConverter(sql);
+        util.verifyRelPlan(sql);
     }
 
     @Test
@@ -107,7 +107,7 @@ public class MLPredictTableFunctionTest extends TableTestBase {
         String sql =
                 "SELECT *\n"
                         + "FROM TABLE(ML_PREDICT(TABLE MyTable, MODEL MyModel, DESCRIPTOR(a, b), MAP['async', 'true', 'timeout', '100s']))";
-        assertReachesRelConverter(sql);
+        util.verifyRelPlan(sql);
     }
 
     @Test
@@ -154,7 +154,7 @@ public class MLPredictTableFunctionTest extends TableTestBase {
         String sql =
                 "SELECT *\n"
                         + "FROM TABLE(ML_PREDICT(TABLE MyTable, MODEL ConflictModel, DESCRIPTOR(a, b)))";
-        assertReachesRelConverter(sql);
+        util.verifyRelPlan(sql);
     }
 
     @Test
@@ -230,7 +230,7 @@ public class MLPredictTableFunctionTest extends TableTestBase {
         String sql =
                 "SELECT *\n"
                         + "FROM TABLE(ML_PREDICT(TABLE TypeTable, MODEL TypeModel, DESCRIPTOR(col)))";
-        assertReachesRelConverter(sql);
+        util.verifyRelPlan(sql);
     }
 
     @ParameterizedTest
@@ -277,12 +277,6 @@ public class MLPredictTableFunctionTest extends TableTestBase {
                 .isInstanceOf(ValidationException.class)
                 .hasMessageContaining(
                         "ML_PREDICT config param can only be a MAP of string literals. The item at position 1 is TRUE.");
-    }
-
-    private void assertReachesRelConverter(String sql) {
-        assertThatThrownBy(() -> util.verifyRelPlan(sql))
-                .hasMessageContaining(
-                        "This exception indicates that the query uses an unsupported SQL feature.");
     }
 
     private static Stream<Arguments> compatibleTypeProvider() {

@@ -316,7 +316,8 @@ class FlinkChangelogModeInferenceProgram extends FlinkOptimizeProgram[StreamOpti
         val groups = over.logicWindow.groups
 
         if (!groups.isEmpty && !groups.get(0).orderKeys.getFieldCollations.isEmpty) {
-          // All aggregates are computed over the same window and order by is supported for only 1 field
+          // All aggregates are computed over the same window and order by is supported for only
+          // 1 field
           val orderKeyIndex = groups.get(0).orderKeys.getFieldCollations.get(0).getFieldIndex
           val orderKeyType = over.logicWindow.getRowType.getFieldList.get(orderKeyIndex).getType
           if (
@@ -376,7 +377,7 @@ class FlinkChangelogModeInferenceProgram extends FlinkOptimizeProgram[StreamOpti
       case _: StreamPhysicalCalcBase | _: StreamPhysicalCorrelateBase |
           _: StreamPhysicalLookupJoin | _: StreamPhysicalExchange | _: StreamPhysicalExpand |
           _: StreamPhysicalMiniBatchAssigner | _: StreamPhysicalWatermarkAssigner |
-          _: StreamPhysicalWindowTableFunction =>
+          _: StreamPhysicalWindowTableFunction | _: StreamPhysicalMLPredict =>
         // transparent forward requiredTrait to children
         val children = visitChildren(rel, requiredTrait, requester)
         val childrenTrait = children.head.getTraitSet.getTrait(ModifyKindSetTraitDef.INSTANCE)
@@ -716,7 +717,7 @@ class FlinkChangelogModeInferenceProgram extends FlinkOptimizeProgram[StreamOpti
         case _: StreamPhysicalCorrelateBase | _: StreamPhysicalLookupJoin |
             _: StreamPhysicalExchange | _: StreamPhysicalExpand |
             _: StreamPhysicalMiniBatchAssigner | _: StreamPhysicalWatermarkAssigner |
-            _: StreamPhysicalWindowTableFunction =>
+            _: StreamPhysicalWindowTableFunction | _: StreamPhysicalMLPredict =>
           // transparent forward requiredTrait to children
           visitChildren(rel, requiredUpdateTrait) match {
             case None => None
@@ -756,7 +757,8 @@ class FlinkChangelogModeInferenceProgram extends FlinkOptimizeProgram[StreamOpti
                       case (UpdateKind.NONE, r: UpdateKind) => r
                       case (l: UpdateKind, UpdateKind.NONE) => l
                       case (l: UpdateKind, r: UpdateKind) if l == r => l
-                      // UNION doesn't support to union ONLY_UPDATE_AFTER and BEFORE_AND_AFTER inputs
+                      // UNION doesn't support to union ONLY_UPDATE_AFTER and BEFORE_AND_AFTER
+                      // inputs
                       case (_, _) => return None
                     }
                 }
@@ -1016,7 +1018,8 @@ class FlinkChangelogModeInferenceProgram extends FlinkOptimizeProgram[StreamOpti
               val pks = ImmutableBitSet.of(primaryKeys: _*)
               val fmq = FlinkRelMetadataQuery.reuseOrCreate(sink.getCluster.getMetadataQuery)
               val changeLogUpsertKeys = fmq.getUpsertKeys(sink.getInput)
-              // if input has update and primary key != upsert key (upsert key can be null) we should
+              // if input has update and primary key != upsert key (upsert key can be null) we
+              // should
               // enable upsertMaterialize. An optimize is: do not enable upsertMaterialize when sink
               // pk(s) contains input changeLogUpsertKeys
               if (changeLogUpsertKeys == null || !changeLogUpsertKeys.exists(pks.contains)) {
@@ -1083,7 +1086,8 @@ class FlinkChangelogModeInferenceProgram extends FlinkOptimizeProgram[StreamOpti
             _: StreamPhysicalWindowRank | _: StreamPhysicalWindowDeduplicate |
             _: StreamPhysicalTemporalSort | _: StreamPhysicalMatch |
             _: StreamPhysicalOverAggregate | _: StreamPhysicalIntervalJoin |
-            _: StreamPhysicalPythonOverAggregate | _: StreamPhysicalWindowJoin =>
+            _: StreamPhysicalPythonOverAggregate | _: StreamPhysicalWindowJoin |
+            _: StreamPhysicalMLPredict =>
           // if not explicitly supported, all operators require full deletes if there are updates
           val children = rel.getInputs.map {
             case child: StreamPhysicalRel =>
@@ -1546,7 +1550,8 @@ class FlinkChangelogModeInferenceProgram extends FlinkOptimizeProgram[StreamOpti
           if (tableArg.is(StaticArgumentTrait.TABLE_AS_ROW)) {
             throw new ValidationException(
               s"PTFs that take table arguments with row semantics don't support updating output. " +
-                s"Table argument '${tableArg.getName}' of function '${call.getOperator.toString}' " +
+                s"Table argument '${tableArg.getName}' of function '${call.getOperator.toString}'" +
+                s" " +
                 s"must use set semantics.")
           }
       }

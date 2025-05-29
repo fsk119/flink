@@ -18,14 +18,14 @@
 
 package org.apache.flink.table.planner.calcite;
 
-import org.apache.flink.table.planner.plan.schema.ModelProviderModel;
+import org.apache.flink.table.catalog.ContextResolvedModel;
+import org.apache.flink.table.ml.ModelProvider;
 
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexCall;
-import org.apache.calcite.sql.SqlKind;
-import org.apache.calcite.sql.SqlSpecialOperator;
+import org.apache.calcite.sql.SqlOperator;
 
-import java.util.List;
+import java.util.Collections;
 
 /**
  * A {@link RexCall} that represents a call to a model provider model.
@@ -34,27 +34,37 @@ import java.util.List;
  */
 public class RexModelCall extends RexCall {
 
-    private ModelProviderModel modelProviderModel;
-    private RelDataType inputType;
+    private final ContextResolvedModel model;
+    private final ModelProvider provider;
 
     public RexModelCall(
-            ModelProviderModel modelProviderModel, RelDataType inputType, RelDataType outputType) {
-        super(outputType, new SqlSpecialOperator("Model", SqlKind.OTHER), List.of());
-        this.modelProviderModel = modelProviderModel;
-        this.inputType = inputType;
+            RelDataType type,
+            SqlOperator operator,
+            ContextResolvedModel model,
+            ModelProvider provider) {
+        super(type, operator, Collections.emptyList());
+        this.model = model;
+        this.provider = provider;
+    }
+
+    public RexCall getDescriptor() {
+        return (RexCall) operands.get(0);
+    }
+
+    public ContextResolvedModel getContextResolvedModel() {
+        return model;
+    }
+
+    public ModelProvider getModelProvider() {
+        return provider;
     }
 
     @Override
     protected String computeDigest(boolean withType) {
         final StringBuilder sb = new StringBuilder(op.getName());
         sb.append("(");
-        sb.append("MODEL ")
-                .append(
-                        modelProviderModel
-                                .getContextResolvedModel()
-                                .getIdentifier()
-                                .asSummaryString())
-                .append(")");
+        sb.append("MODEL ").append(model.getIdentifier().asSummaryString());
+        appendOperands(sb);
         if (withType) {
             sb.append(":");
             sb.append(type.getFullTypeString());

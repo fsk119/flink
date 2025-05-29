@@ -62,12 +62,12 @@ public class SqlModelCall extends SqlBasicCall {
      *
      * <p>It is used to derive the type of the model based on the identifier.
      */
-    private static class SqlModelOperator extends SqlPrefixOperator {
+    private static class SqlModelOperator extends SqlSpecialOperator {
 
         CatalogSchemaModel model;
 
         private SqlModelOperator(CatalogSchemaModel model) {
-            super("MODEL", SqlKind.OTHER_FUNCTION, 2, null, null, null);
+            super("MODEL", SqlKind.OTHER_FUNCTION, 2);
             this.model = model;
         }
 

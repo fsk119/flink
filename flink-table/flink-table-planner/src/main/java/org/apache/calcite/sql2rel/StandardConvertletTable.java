@@ -951,7 +951,7 @@ public class StandardConvertletTable extends ReflectiveConvertletTable {
         return convertOperands(cx, call, operandList, consistency);
     }
 
-    private static List<RexNode> convertOperands(
+    public static List<RexNode> convertOperands(
             SqlRexContext cx,
             SqlCall call,
             List<SqlNode> nodes,
