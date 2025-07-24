@@ -52,6 +52,7 @@ import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.table.functions.AsyncLookupFunction;
 import org.apache.flink.table.functions.FunctionContext;
 import org.apache.flink.table.functions.LookupFunction;
+import org.apache.flink.table.functions.SearchFunction;
 import org.apache.flink.table.runtime.generated.GeneratedProjection;
 import org.apache.flink.table.runtime.generated.Projection;
 import org.apache.flink.table.runtime.typeutils.ExternalSerializer;
@@ -1053,6 +1054,17 @@ public final class TestValuesRuntimeFunctions {
                 return CompletableFuture.supplyAsync(() -> emptyResult);
             }
             return super.asyncLookup(keyRow);
+        }
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // Search Function implementations
+    // ------------------------------------------------------------------------------------------
+
+    public static class TestValuesSearchFunction extends SearchFunction {
+        @Override
+        public Collection<RowData> search(int topK, RowData inputRow) {
+            return List.of();
         }
     }
 }

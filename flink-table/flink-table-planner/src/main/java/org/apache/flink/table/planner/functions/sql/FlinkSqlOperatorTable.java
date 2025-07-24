@@ -1361,6 +1361,8 @@ public class FlinkSqlOperatorTable extends ReflectiveSqlOperatorTable {
     public static final SqlFunction ML_PREDICT = new SqlMLPredictTableFunction();
     public static final SqlFunction ML_EVALUATE = new SqlMLEvaluateTableFunction();
 
+    public static final SqlOperator VECTOR_SEARCH = new SqlVectorSearch();
+
     // Catalog Functions
     public static final SqlFunction CURRENT_DATABASE =
             BuiltInSqlFunction.newBuilder()

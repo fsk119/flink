@@ -61,6 +61,7 @@ import org.apache.flink.table.connector.source.DynamicTableSource;
 import org.apache.flink.table.connector.source.InputFormatProvider;
 import org.apache.flink.table.connector.source.LookupTableSource;
 import org.apache.flink.table.connector.source.ScanTableSource;
+import org.apache.flink.table.connector.source.SearchTableSource;
 import org.apache.flink.table.connector.source.SourceProvider;
 import org.apache.flink.table.connector.source.abilities.SupportsAggregatePushDown;
 import org.apache.flink.table.connector.source.abilities.SupportsDynamicFiltering;
@@ -100,6 +101,7 @@ import org.apache.flink.table.legacy.api.TableSchema;
 import org.apache.flink.table.legacy.api.WatermarkSpec;
 import org.apache.flink.table.legacy.connector.source.AsyncTableFunctionProvider;
 import org.apache.flink.table.legacy.connector.source.TableFunctionProvider;
+import org.apache.flink.table.ml.SearchFunctionProvider;
 import org.apache.flink.table.planner.codegen.CodeGeneratorContext;
 import org.apache.flink.table.planner.codegen.ProjectionCodeGenerator;
 import org.apache.flink.table.planner.factories.TestValuesRuntimeFunctions.AppendingOutputFormat;
@@ -496,6 +498,9 @@ public final class TestValuesTableFactory
                             "Option to specify the amount of time to sleep after processing every N elements. "
                                     + "The default value is 0, which means that no sleep is performed");
 
+    private static final ConfigOption<Boolean> ENABLE_SEARCH =
+            ConfigOptions.key("enable-search").booleanType().defaultValue(false);
+
     /**
      * Parse partition list from Options with the format as
      * "key1:val1,key2:val2;key1:val3,key2:val4".
@@ -548,6 +553,7 @@ public final class TestValuesTableFactory
                 helper.getOptions().get(CUSTOM_SHUFFLE_DETERMINISTIC);
         boolean customShuffleEmptyPartitioner =
                 helper.getOptions().get(CUSTOM_SHUFFLE_EMPTY_PARTITIONER);
+        boolean enableSearch = helper.getOptions().get(ENABLE_SEARCH);
         Integer parallelism = helper.getOptions().get(SOURCE_PARALLELISM);
         DefaultLookupCache cache = null;
         if (helper.getOptions().get(CACHE_TYPE).equals(LookupOptions.LookupCacheType.PARTIAL)) {
@@ -603,6 +609,10 @@ public final class TestValuesTableFactory
                 partitions = Collections.emptyList();
                 partition2Rows = new HashMap<>();
                 partition2Rows.put(Collections.emptyMap(), data);
+            }
+
+            if (enableSearch) {
+                return new TestValuesSearchSource();
             }
 
             if (!enableProjectionPushDown) {
@@ -858,7 +868,8 @@ public final class TestValuesTableFactory
                         FULL_CACHE_PERIODIC_RELOAD_INTERVAL,
                         FULL_CACHE_PERIODIC_RELOAD_SCHEDULE_MODE,
                         FULL_CACHE_TIMED_RELOAD_ISO_TIME,
-                        FULL_CACHE_TIMED_RELOAD_INTERVAL_IN_DAYS));
+                        FULL_CACHE_TIMED_RELOAD_INTERVAL_IN_DAYS,
+                        ENABLE_SEARCH));
     }
 
     private static int validateAndExtractRowtimeIndex(
@@ -2038,6 +2049,24 @@ public final class TestValuesTableFactory
                     lookupThreshold,
                     enableAggregatePushDown,
                     primaryKeyIndices);
+        }
+    }
+
+    private static class TestValuesSearchSource implements SearchTableSource {
+        @Override
+        public SearchRuntimeProvider getSearchRuntimeProvider(SearchContext context) {
+            return SearchFunctionProvider.of(
+                    new TestValuesRuntimeFunctions.TestValuesSearchFunction());
+        }
+
+        @Override
+        public DynamicTableSource copy() {
+            return new TestValuesSearchSource();
+        }
+
+        @Override
+        public String asSummaryString() {
+            return "ValuesSearchFunction";
         }
     }
 

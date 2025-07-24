@@ -25,7 +25,7 @@ import org.apache.flink.table.catalog.DataTypeFactory
 import org.apache.flink.table.connector.source.{LookupTableSource, ScanTableSource}
 import org.apache.flink.table.data.{GenericRowData, RowData}
 import org.apache.flink.table.data.utils.JoinedRowData
-import org.apache.flink.table.functions.{AsyncLookupFunction, AsyncPredictFunction, AsyncTableFunction, LookupFunction, PredictFunction, TableFunction, UserDefinedFunction, UserDefinedFunctionHelper}
+import org.apache.flink.table.functions.{AsyncLookupFunction, AsyncPredictFunction, AsyncTableFunction, LookupFunction, PredictFunction, SearchFunction, TableFunction, UserDefinedFunction, UserDefinedFunctionHelper}
 import org.apache.flink.table.planner.calcite.FlinkTypeFactory
 import org.apache.flink.table.planner.codegen.CodeGenUtils._
 import org.apache.flink.table.planner.codegen.GenerateUtils._
@@ -244,7 +244,8 @@ object LookupJoinCodeGenerator {
         val outputClass =
           if (
             udf.isInstanceOf[LookupFunction] || udf.isInstanceOf[AsyncLookupFunction] || udf
-              .isInstanceOf[PredictFunction] || udf.isInstanceOf[AsyncPredictFunction]
+              .isInstanceOf[PredictFunction] || udf.isInstanceOf[AsyncPredictFunction] || udf
+              .isInstanceOf[SearchFunction]
           ) {
             Some(classOf[RowData])
           } else {

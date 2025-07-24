@@ -540,7 +540,10 @@ class LookupJoinTest extends TableTestBase with Serializable {
                     |CREATE TABLE LookupTable2 (
                     |  `id` decimal(38, 18),
                     |  `name` STRING,
-                    |  `age` INT
+                    |  `age` INT,
+                    |  ts timestamp(3),
+                    |  watermark for ts as ts,
+                    |  primary key(id) not enforced
                     |) WITH (
                     |  'connector' = 'values'
                     |)
@@ -550,7 +553,7 @@ class LookupJoinTest extends TableTestBase with Serializable {
         |SELECT MyTable.b, LookupTable2.id
         |FROM MyTable
         |LEFT JOIN LookupTable2 FOR SYSTEM_TIME AS OF MyTable.`proctime`
-        |ON MyTable.a = CAST(LookupTable2.`id` as INT)
+        |ON MyTable.a = LookupTable2.`id`
         |""".stripMargin
 
     assertThatThrownBy(() => verifyTranslationSuccess(sql))

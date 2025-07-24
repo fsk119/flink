@@ -28,6 +28,7 @@ import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.table.planner.catalog.CatalogSchemaModel;
 import org.apache.flink.table.planner.catalog.CatalogSchemaTable;
+import org.apache.flink.table.planner.functions.sql.SqlVectorSearch;
 import org.apache.flink.table.planner.functions.sql.ml.SqlMLTableFunction;
 import org.apache.flink.table.planner.plan.FlinkCalciteCatalogReader;
 import org.apache.flink.table.planner.plan.utils.FlinkRexUtil;
@@ -394,7 +395,9 @@ public final class FlinkCalciteSqlValidator extends SqlValidatorImpl {
         }
 
         // TODO (FLINK-37819): add test for SqlMLTableFunction
-        if (operator instanceof SqlWindowTableFunction || operator instanceof SqlMLTableFunction) {
+        if (operator instanceof SqlWindowTableFunction
+                || operator instanceof SqlMLTableFunction
+                || operator instanceof SqlVectorSearch) {
             if (tableArgs.stream().allMatch(Objects::isNull)) {
                 return rewritten;
             }

@@ -17,6 +17,7 @@
 package org.apache.calcite.sql.validate;
 
 import org.apache.flink.table.planner.calcite.FlinkSqlCallBinding;
+import org.apache.flink.table.planner.functions.sql.SqlVectorSearch;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -2574,6 +2575,13 @@ public class SqlValidatorImpl implements SqlValidatorWithHints {
                     final SqlBasicCall call1 = (SqlBasicCall) operand;
                     final SqlOperator op = call1.getOperator();
                     if (op instanceof SqlWindowTableFunction
+                            && call1.operand(0).getKind() == SqlKind.SELECT) {
+                        scopes.put(node, getSelectScope(call1.operand(0)));
+                        return newNode;
+                    }
+
+                    // related to CALCITE-4077
+                    if (op instanceof SqlVectorSearch
                             && call1.operand(0).getKind() == SqlKind.SELECT) {
                         scopes.put(node, getSelectScope(call1.operand(0)));
                         return newNode;

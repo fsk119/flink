@@ -104,6 +104,8 @@ public class SqlNodeToOperationConversionTestBase {
 
         final ObjectPath path1 = new ObjectPath(catalogManager.getCurrentDatabase(), "t1");
         final ObjectPath path2 = new ObjectPath(catalogManager.getCurrentDatabase(), "t2");
+        final ObjectPath path3 = new ObjectPath(catalogManager.getCurrentDatabase(), "t3");
+
         final Schema tableSchema =
                 Schema.newBuilder()
                         .fromResolvedSchema(
@@ -119,6 +121,21 @@ public class SqlNodeToOperationConversionTestBase {
                 CatalogTable.newBuilder().schema(tableSchema).comment("").options(options).build();
         catalog.createTable(path1, catalogTable, true);
         catalog.createTable(path2, catalogTable, true);
+
+        final Schema tableSchema3 =
+                Schema.newBuilder()
+                        .fromResolvedSchema(
+                                ResolvedSchema.of(
+                                        Column.physical("a1", DataTypes.BIGINT().notNull()),
+                                        Column.physical("b1", DataTypes.VARCHAR(Integer.MAX_VALUE)),
+                                        Column.physical("c1", DataTypes.INT()),
+                                        Column.physical(
+                                                "d1", DataTypes.VARCHAR(Integer.MAX_VALUE))))
+                        .build();
+        catalog.createTable(
+                path3,
+                CatalogTable.newBuilder().schema(tableSchema3).options(options).build(),
+                true);
     }
 
     @AfterEach

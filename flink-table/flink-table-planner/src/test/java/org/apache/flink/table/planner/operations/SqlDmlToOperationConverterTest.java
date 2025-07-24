@@ -62,6 +62,20 @@ public class SqlDmlToOperationConverterTest extends SqlNodeToOperationConversion
     }
 
     @Test
+    public void testVectorSearch() {
+        String sql =
+                "SELECT * FROM t2, lateral TABLE(\n"
+                        + "vector_search(\n"
+                        + "    TABLE t3, DESCRIPTOR(`a1`), t2.a"
+                        + ")\n"
+                        + ")";
+        FlinkPlannerImpl planner = getPlannerBySqlDialect(SqlDialect.DEFAULT);
+        final CalciteParser parser = getParserBySqlDialect(SqlDialect.DEFAULT);
+        Operation op = parse(sql, planner, parser);
+        System.out.println(op);
+    }
+
+    @Test
     public void testExplainWithInsert() {
         final String sql = "explain insert into t2 select * from t1";
         checkExplainSql(sql);
