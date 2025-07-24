@@ -18,16 +18,27 @@
 
 package org.apache.flink.table.planner.functions.sql;
 
+import org.apache.flink.table.planner.functions.utils.SqlValidatorUtils;
+import org.apache.flink.table.types.logical.ArrayType;
+import org.apache.flink.table.types.logical.LogicalType;
+import org.apache.flink.table.types.logical.LogicalTypeFamily;
+import org.apache.flink.table.types.logical.LogicalTypeRoot;
+import org.apache.flink.table.types.logical.utils.LogicalTypeCasts;
+
 import com.google.common.collect.ImmutableMap;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
+import org.apache.calcite.sql.SqlCall;
 import org.apache.calcite.sql.SqlCallBinding;
 import org.apache.calcite.sql.SqlFunction;
 import org.apache.calcite.sql.SqlFunctionCategory;
+import org.apache.calcite.sql.SqlIdentifier;
 import org.apache.calcite.sql.SqlKind;
+import org.apache.calcite.sql.SqlNode;
 import org.apache.calcite.sql.SqlOperandCountRange;
 import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.SqlOperatorBinding;
+import org.apache.calcite.sql.SqlSelect;
 import org.apache.calcite.sql.SqlTableFunction;
 import org.apache.calcite.sql.TableCharacteristic;
 import org.apache.calcite.sql.type.ReturnTypes;
@@ -35,12 +46,16 @@ import org.apache.calcite.sql.type.SqlOperandCountRanges;
 import org.apache.calcite.sql.type.SqlOperandMetadata;
 import org.apache.calcite.sql.type.SqlReturnTypeInference;
 import org.apache.calcite.sql.type.SqlTypeName;
+import org.apache.calcite.sql.validate.SqlNameMatcher;
+import org.apache.calcite.util.Util;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
+import static org.apache.flink.table.planner.calcite.FlinkTypeFactory.toLogicalType;
 
 public class SqlVectorSearch extends SqlFunction implements SqlTableFunction {
 
@@ -127,6 +142,53 @@ public class SqlVectorSearch extends SqlFunction implements SqlTableFunction {
 
         @Override
         public boolean checkOperandTypes(SqlCallBinding callBinding, boolean throwOnFailure) {
+            if (!SqlValidatorUtils.checkTableAndDescriptorOperands(callBinding, 1)) {
+                return SqlValidatorUtils.throwValidationSignatureErrorOrReturnFalse(
+                        callBinding, throwOnFailure);
+            }
+
+            // check descriptor has one column
+            SqlCall descriptor = (SqlCall) callBinding.operand(1);
+            List<SqlNode> descriptorCols = descriptor.getOperandList();
+
+            if (descriptorCols.size() != 1) {
+                return SqlValidatorUtils.throwValidationSignatureErrorOrReturnFalse(
+                        callBinding, throwOnFailure);
+            }
+
+            // check descriptor type and used column type are same
+            RelDataType searchTableType = callBinding.getOperandType(0);
+            SqlNameMatcher matcher = callBinding.getValidator().getCatalogReader().nameMatcher();
+            for (SqlNode descriptorCol : descriptorCols) {
+                SqlIdentifier columnName = (SqlIdentifier) descriptorCol;
+                String descriptorColName =
+                        columnName.isSimple()
+                                ? columnName.getSimple()
+                                : Util.last(columnName.names);
+                int index = matcher.indexOf(searchTableType.getFieldNames(), descriptorColName);
+                RelDataType targetType = searchTableType.getFieldList().get(index).getType();
+
+                LogicalType sourceLogicalType = toLogicalType(callBinding.getOperandType(2));
+                LogicalType targetLogicalType = toLogicalType(targetType);
+                if (!LogicalTypeCasts.supportsImplicitCast(sourceLogicalType, targetLogicalType)) {
+                    return SqlValidatorUtils.throwValidationSignatureErrorOrReturnFalse(
+                            callBinding, throwOnFailure);
+                }
+
+                if (!(sourceLogicalType.is(LogicalTypeRoot.ARRAY)
+                        && ((ArrayType) (sourceLogicalType))
+                                .getElementType()
+                                .isAnyOf(LogicalTypeRoot.FLOAT, LogicalTypeRoot.DOUBLE))) {
+                    return SqlValidatorUtils.throwValidationSignatureErrorOrReturnFalse(
+                            callBinding, throwOnFailure);
+                }
+            }
+
+            // TODO: it's not easy to check whether table is a view
+            // Introduce some rules to do this.
+            // But filter push down is in the logical phase...
+            // in the physical phase, we also check whether the structure on the right side is
+            // simple.
             return true;
         }
 
