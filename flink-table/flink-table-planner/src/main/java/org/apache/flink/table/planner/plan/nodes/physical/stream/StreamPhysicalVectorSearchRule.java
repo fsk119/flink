@@ -20,17 +20,22 @@ package org.apache.flink.table.planner.plan.nodes.physical.stream;
 
 import org.apache.flink.table.planner.functions.sql.SqlVectorSearch;
 import org.apache.flink.table.planner.plan.nodes.FlinkConventions;
+import org.apache.flink.table.planner.plan.nodes.calcite.WatermarkAssigner;
 import org.apache.flink.table.planner.plan.nodes.logical.FlinkLogicalCorrelate;
 import org.apache.flink.table.planner.plan.nodes.logical.FlinkLogicalRel;
 import org.apache.flink.table.planner.plan.nodes.logical.FlinkLogicalTableFunctionScan;
 import org.apache.flink.table.planner.plan.nodes.logical.FlinkLogicalTableSourceScan;
 
+import org.apache.calcite.plan.RelOptPlanner;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.plan.RelRule;
+import org.apache.calcite.plan.volcano.RelSubset;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.core.Calc;
 import org.apache.calcite.rel.core.CorrelationId;
+import org.apache.calcite.rel.core.TableScan;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexCorrelVariable;
@@ -69,6 +74,7 @@ public class StreamPhysicalVectorSearchRule
         final RelNode newInput =
                 RelOptRule.convert(call.rel(1), FlinkConventions.STREAM_PHYSICAL());
         FlinkLogicalTableFunctionScan functionCall = call.rel(2);
+        new UnsupportedStructureFinder().visit(functionCall.getInput(0));
         FlinkLogicalTableSourceScan scan = call.rel(3);
         RelOptTable temporalTable = scan.getTable();
         // try to decorrelate the expression
@@ -111,17 +117,87 @@ public class StreamPhysicalVectorSearchRule
                                                                 b2.operand(
                                                                                 FlinkLogicalTableFunctionScan
                                                                                         .class)
-                                                                        .oneInput(
-                                                                                b3 ->
-                                                                                        b3.operand(
-                                                                                                        FlinkLogicalTableSourceScan
-                                                                                                                .class)
-                                                                                                .anyInputs())))
+                                                                        .anyInputs()))
                         .withDescription("StreamPhysicalVectorSearchRule");
 
         @Override
         default StreamPhysicalVectorSearchRule toRule() {
             return new StreamPhysicalVectorSearchRule(this);
+        }
+    }
+
+    // Only support watermark assigner -> project -> scan
+    // project -> scan or
+    // scan
+    // watermark -> scan
+    // TODO: extract filter and projection later.
+    static class UnsupportedStructureFinder {
+
+        enum Node {
+            WATERMARK_ASSIGNER,
+            CALC,
+            SCAN
+        }
+
+        private Node paranetNode;
+
+        private void visit(RelNode p) {
+            if (p instanceof RelSubset) {
+                visitSubset((RelSubset) p);
+            } else {
+                visitRel(p);
+            }
+        }
+
+        private void visitSubset(RelSubset subset) {
+            RelNode cheapestOrOriginal = subset.getBestOrOriginal();
+            visitRel(cheapestOrOriginal);
+        }
+
+        private Node transform(RelNode node) {
+            Node transformed;
+            if (node instanceof WatermarkAssigner) {
+                transformed = Node.WATERMARK_ASSIGNER;
+            } else if (node instanceof Calc) {
+                transformed = Node.CALC;
+            } else if (node instanceof TableScan) {
+                transformed = Node.SCAN;
+            } else {
+                throw new RelOptPlanner.CannotPlanException(
+                        String.format(
+                                "Don't support %s node in the right tree.",
+                                node.getClass().getSimpleName()));
+            }
+            return transformed;
+        }
+
+        /** Returns true when input {@code RelNode} is cyclic. */
+        private void visitRel(RelNode p) {
+            Node currentNode = transform(p);
+            switch (currentNode) {
+                case WATERMARK_ASSIGNER:
+                    if (paranetNode != null) {
+                        throw new RelOptPlanner.CannotPlanException(
+                                String.format(
+                                        "Assume watermark assigner is first node but it has parent %s.",
+                                        paranetNode));
+                    }
+                    break;
+                case CALC:
+                    if (paranetNode == null || paranetNode == Node.WATERMARK_ASSIGNER) {
+                        throw new RelOptPlanner.CannotPlanException(
+                                String.format(
+                                        "Assume calc is first node or calc is the first node but it has parent %s.",
+                                        paranetNode));
+                    }
+                    break;
+                case SCAN:
+                    // do nothing.
+            }
+            paranetNode = currentNode;
+            if (currentNode != Node.SCAN) {
+                visit(p.getInput(0));
+            }
         }
     }
 

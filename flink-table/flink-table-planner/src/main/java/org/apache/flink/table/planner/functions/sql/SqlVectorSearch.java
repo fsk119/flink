@@ -21,7 +21,6 @@ package org.apache.flink.table.planner.functions.sql;
 import org.apache.flink.table.planner.functions.utils.SqlValidatorUtils;
 import org.apache.flink.table.types.logical.ArrayType;
 import org.apache.flink.table.types.logical.LogicalType;
-import org.apache.flink.table.types.logical.LogicalTypeFamily;
 import org.apache.flink.table.types.logical.LogicalTypeRoot;
 import org.apache.flink.table.types.logical.utils.LogicalTypeCasts;
 
@@ -38,7 +37,6 @@ import org.apache.calcite.sql.SqlNode;
 import org.apache.calcite.sql.SqlOperandCountRange;
 import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.SqlOperatorBinding;
-import org.apache.calcite.sql.SqlSelect;
 import org.apache.calcite.sql.SqlTableFunction;
 import org.apache.calcite.sql.TableCharacteristic;
 import org.apache.calcite.sql.type.ReturnTypes;
