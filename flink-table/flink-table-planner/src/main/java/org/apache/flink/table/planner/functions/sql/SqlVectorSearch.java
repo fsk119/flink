@@ -124,7 +124,6 @@ public class SqlVectorSearch extends SqlFunction implements SqlTableFunction {
                                 PARAM_COLUMN_TO_SEARCH,
                                 PARAM_COLUMN_TO_QUERY,
                                 PARAM_TOP_K,
-                                PARAM_DISTANCE_TYPE,
                                 PARAM_OPTIONS));
 
         @Override
@@ -192,12 +191,12 @@ public class SqlVectorSearch extends SqlFunction implements SqlTableFunction {
 
         @Override
         public SqlOperandCountRange getOperandCountRange() {
-            return SqlOperandCountRanges.between(3, 5);
+            return SqlOperandCountRanges.between(4, 5);
         }
 
         @Override
         public String getAllowedSignatures(SqlOperator op, String opName) {
-            return String.format("%s(input_name, index, query, options)", opName);
+            return String.format("%s(input_name, index, query, topK, [options])", opName);
         }
 
         @Override
@@ -207,7 +206,7 @@ public class SqlVectorSearch extends SqlFunction implements SqlTableFunction {
 
         @Override
         public boolean isOptional(int i) {
-            return i > 4;
+            return i >= 4;
         }
     }
 

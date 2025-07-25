@@ -27,7 +27,7 @@ public interface SearchTableSource extends DynamicTableSource {
     interface SearchContext extends DynamicTableSource.Context {
 
         /**
-         * Returns an array of key index paths that should be used during the lookup. The indices
+         * Returns an array of key index paths that should be used during the search. The indices
          * are 0-based and support composite keys within (possibly nested) structures.
          *
          * <p>For example, given a table with data type {@code ROW < i INT, s STRING, r ROW < i2

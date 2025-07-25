@@ -113,7 +113,7 @@ public class LogicalCorrelateToVectorSearchRule
         RexNode topK = rewrittenCall.getOperands().get(3);
 
         // config
-        RexNode config = rewrittenCall.getOperands().get(4);
+        // RexNode config = rewrittenCall.getOperands().get(4);
 
         call.transformTo(
                 LogicalVectorSearch.create(
@@ -123,7 +123,7 @@ public class LogicalCorrelateToVectorSearchRule
                         queryIndex,
                         searchColumns.get(0),
                         topK,
-                        config));
+                        null));
     }
 
     @Value.Immutable

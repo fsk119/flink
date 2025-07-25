@@ -134,4 +134,35 @@ public class VectorSearchTest extends TableTestBase {
                         + ") as p";
         util.verifyRelPlan(sql);
     }
+
+    @Test
+    void testRunVectorSearch6() {
+        util.tableEnv()
+                .executeSql(
+                        "CREATE TABLE users(\n"
+                                + "  id BIGINT,\n"
+                                + "  name STRING,\n"
+                                + "  features ARRAY<FLOAT>"
+                                + ") WITH ("
+                                + "  'connector' = 'values'"
+                                + ")");
+        util.tableEnv()
+                .executeSql(
+                        "CREATE TABLE products(\n"
+                                + "  id BIGINT,\n"
+                                + "  name STRING,\n"
+                                + "  index ARRAY<FLOAT>"
+                                + ") WITH ("
+                                + "  'connector' = 'values'"
+                                + ")");
+
+        String sql =
+                "SELECT * FROM users, LATERAL TABLE (VECTOR_SEARCH(\n"
+                        + "  TABLE products,\n"
+                        + "  DESCRIPTOR(`index`),\n"
+                        + "  users.features,\n"
+                        + "  3\n"
+                        + "))\n";
+        util.verifyRelPlan(sql);
+    }
 }
