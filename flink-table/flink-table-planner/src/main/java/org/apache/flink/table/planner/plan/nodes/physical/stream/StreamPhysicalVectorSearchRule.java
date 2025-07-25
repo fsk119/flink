@@ -25,6 +25,7 @@ import org.apache.flink.table.planner.plan.nodes.logical.FlinkLogicalCorrelate;
 import org.apache.flink.table.planner.plan.nodes.logical.FlinkLogicalRel;
 import org.apache.flink.table.planner.plan.nodes.logical.FlinkLogicalTableFunctionScan;
 import org.apache.flink.table.planner.plan.nodes.logical.FlinkLogicalTableSourceScan;
+import org.apache.flink.table.planner.plan.nodes.logical.FlinkLogicalVectorSearch;
 
 import org.apache.calcite.plan.RelOptPlanner;
 import org.apache.calcite.plan.RelOptRule;
@@ -43,6 +44,7 @@ import org.apache.calcite.rex.RexFieldAccess;
 import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.rex.RexShuttle;
+import org.apache.calcite.schema.TemporalTable;
 import org.immutables.value.Value;
 
 @Value.Enclosing
@@ -58,47 +60,25 @@ public class StreamPhysicalVectorSearchRule
     }
 
     @Override
-    public boolean matches(RelOptRuleCall call) {
-        FlinkLogicalTableFunctionScan functionCall = call.rel(2);
-        RexNode expression = functionCall.getCall();
-        if (!(expression instanceof RexCall)) {
-            return false;
-        }
-        RexCall rexCall = (RexCall) expression;
-        return rexCall.getOperator() instanceof SqlVectorSearch;
-    }
-
-    @Override
     public void onMatch(RelOptRuleCall call) {
-        FlinkLogicalCorrelate rel = call.rel(0);
+        FlinkLogicalVectorSearch rel = call.rel(0);
         final RelNode newInput =
                 RelOptRule.convert(call.rel(1), FlinkConventions.STREAM_PHYSICAL());
-        FlinkLogicalTableFunctionScan functionCall = call.rel(2);
-        new UnsupportedStructureFinder().visit(functionCall.getInput(0));
-        FlinkLogicalTableSourceScan scan = call.rel(3);
-        RelOptTable temporalTable = scan.getTable();
-        // try to decorrelate the expression
-        Decorrelator decorrelator = new Decorrelator(rel.getCorrelationId());
-
-        FlinkLogicalTableFunctionScan rewrittenFunctionCall =
-                (FlinkLogicalTableFunctionScan)
-                        functionCall.copy(
-                                functionCall.getTraitSet(),
-                                functionCall.getInputs(),
-                                functionCall.getCall().accept(decorrelator),
-                                functionCall.getElementType(),
-                                functionCall.getRowType(),
-                                functionCall.getColumnMappings());
+        RelNode right = call.rel(2);
+        UnsupportedStructureFinder finder = new UnsupportedStructureFinder();
+        finder.visit(right);
 
         call.transformTo(
                 new StreamPhysicalVectorSearch(
                         rel.getCluster(),
                         rel.getTraitSet().replace(FlinkConventions.STREAM_PHYSICAL()),
                         newInput,
-                        rewrittenFunctionCall,
-                        temporalTable,
-                        rel.getRowType(),
-                        rel.getJoinType()));
+                        finder.temporalTable,
+                        rel.queryColumn(),
+                        rel.searchColumn(),
+                        rel.topK(),
+                        rel.joinType(),
+                        rel.getRowType()));
     }
 
     @Value.Immutable
@@ -108,15 +88,13 @@ public class StreamPhysicalVectorSearchRule
                         .build()
                         .withOperandSupplier(
                                 b0 ->
-                                        b0.operand(FlinkLogicalCorrelate.class)
+                                        b0.operand(FlinkLogicalVectorSearch.class)
                                                 .inputs(
                                                         b1 ->
                                                                 b1.operand(FlinkLogicalRel.class)
                                                                         .anyInputs(),
                                                         b2 ->
-                                                                b2.operand(
-                                                                                FlinkLogicalTableFunctionScan
-                                                                                        .class)
+                                                                b2.operand(FlinkLogicalRel.class)
                                                                         .anyInputs()))
                         .withDescription("StreamPhysicalVectorSearchRule");
 
@@ -132,6 +110,8 @@ public class StreamPhysicalVectorSearchRule
     // watermark -> scan
     // TODO: extract filter and projection later.
     static class UnsupportedStructureFinder {
+
+        RelOptTable temporalTable;
 
         enum Node {
             WATERMARK_ASSIGNER,
@@ -192,32 +172,11 @@ public class StreamPhysicalVectorSearchRule
                     }
                     break;
                 case SCAN:
-                    // do nothing.
+                    temporalTable = ((TableScan) p).getTable().unwrap(RelOptTable.class);
             }
             paranetNode = currentNode;
             if (currentNode != Node.SCAN) {
                 visit(p.getInput(0));
-            }
-        }
-    }
-
-    class Decorrelator extends RexShuttle {
-
-        private final CorrelationId correlationId;
-
-        public Decorrelator(CorrelationId correlationId) {
-            this.correlationId = correlationId;
-        }
-
-        @Override
-        public RexNode visitFieldAccess(RexFieldAccess fieldAccess) {
-            if (fieldAccess.getReferenceExpr() instanceof RexCorrelVariable) {
-                final RexCorrelVariable var = (RexCorrelVariable) fieldAccess.getReferenceExpr();
-                assert var.id.equals(correlationId);
-                final RelDataTypeField field = fieldAccess.getField();
-                return new RexInputRef(field.getIndex(), field.getType());
-            } else {
-                return super.visitFieldAccess(fieldAccess);
             }
         }
     }

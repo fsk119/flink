@@ -31,6 +31,7 @@ object FlinkStreamProgram {
 
   val SUBQUERY_REWRITE = "subquery_rewrite"
   val TEMPORAL_JOIN_REWRITE = "temporal_join_rewrite"
+  val VECTOR_SEARCH_REWRITE = "vector_search_rewrite"
   val DECORRELATE = "decorrelate"
   val DEFAULT_REWRITE = "default_rewrite"
   val PREDICATE_PUSHDOWN = "predicate_pushdown"
@@ -108,6 +109,22 @@ object FlinkStreamProgram {
             .add(FlinkStreamRuleSets.POST_EXPAND_CLEAN_UP_RULES)
             .build(),
           "convert enumerable table scan"
+        )
+        .build()
+    )
+
+    // rewrite special temporal join plan
+    chainedProgram.addLast(
+      VECTOR_SEARCH_REWRITE,
+      FlinkGroupProgramBuilder
+        .newBuilder[StreamOptimizeContext]
+        .addProgram(
+          FlinkHepRuleSetProgramBuilder.newBuilder
+            .setHepRulesExecutionType(HEP_RULES_EXECUTION_TYPE.RULE_SEQUENCE)
+            .setHepMatchOrder(HepMatchOrder.BOTTOM_UP)
+            .add(FlinkStreamRuleSets.VECTOR_SEARCH_RULES)
+            .build(),
+          "convert correlate to vector search"
         )
         .build()
     )

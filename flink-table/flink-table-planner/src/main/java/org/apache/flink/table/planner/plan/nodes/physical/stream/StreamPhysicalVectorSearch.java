@@ -38,6 +38,7 @@ import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelWriter;
+import org.apache.calcite.rel.SingleRel;
 import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexCall;
@@ -46,6 +47,7 @@ import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.rex.RexProgram;
 import org.apache.calcite.sql.SqlDescriptorOperator;
+import org.apache.calcite.sql.validate.SqlValidatorUtil;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -55,33 +57,61 @@ import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-public class StreamPhysicalVectorSearch extends StreamPhysicalCorrelateBase
-        implements StreamPhysicalRel {
+public class StreamPhysicalVectorSearch extends SingleRel implements StreamPhysicalRel {
 
     Optional<RexProgram> program;
 
     RelOptTable temporalTable;
-    RexCall descriptor;
     JoinRelType joinType;
+    RelDataType outputRowType;
+    int queryColumn;
+    int searchColumn;
+    RexNode topK;
 
     public StreamPhysicalVectorSearch(
             RelOptCluster cluster,
             RelTraitSet traits,
             RelNode input,
-            FlinkLogicalTableFunctionScan scan,
             RelOptTable temporalTable,
-            RelDataType outputRowType,
-            JoinRelType joinRelType) {
-        super(
-                cluster,
-                traits,
-                input,
-                scan,
-                JavaScalaConversionUtil.toScala(Optional.empty()),
-                outputRowType,
-                joinRelType);
+            int queryColumn,
+            int searchColumn,
+            RexNode topK,
+            JoinRelType joinRelType,
+            RelDataType outputRowType) {
+        super(cluster, traits, input);
         this.temporalTable = temporalTable;
         this.joinType = joinRelType;
+        this.queryColumn = queryColumn;
+        this.searchColumn = searchColumn;
+        this.topK = topK;
+        this.outputRowType = outputRowType;
+    }
+
+    @Override
+    public RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
+        return new StreamPhysicalVectorSearch(
+                getCluster(),
+                traitSet,
+                inputs.get(0),
+                temporalTable,
+                queryColumn,
+                searchColumn,
+                topK,
+                joinType,
+                outputRowType);
+    }
+
+    @Override
+    protected RelDataType deriveRowType() {
+        FlinkTypeFactory flinkTypeFactory = (FlinkTypeFactory) getCluster().getTypeFactory();
+        RelDataType rightType = temporalTable.getRowType();
+        return SqlValidatorUtil.deriveJoinRowType(
+                getInput(0).getRowType(),
+                rightType,
+                joinType,
+                flinkTypeFactory,
+                null,
+                Collections.emptyList());
     }
 
     @Override
@@ -90,66 +120,16 @@ public class StreamPhysicalVectorSearch extends StreamPhysicalCorrelateBase
     }
 
     @Override
-    public RelNode copy(RelTraitSet traitSet, RelNode newChild, RelDataType outputType) {
-        return new StreamPhysicalVectorSearch(
-                getCluster(), traitSet, newChild, scan(), temporalTable, outputType, joinType);
-    }
-
-    @Override
     public ExecNode<?> translateToExecNode() {
-        RexTableArgCall tableCall = extractOperand(operand -> operand instanceof RexTableArgCall);
-        RexCall descriptorCall =
-                extractOperand(
-                        operand ->
-                                operand instanceof RexCall
-                                        && ((RexCall) operand).getOperator()
-                                                instanceof SqlDescriptorOperator);
-        Map<String, Integer> column2Index = new HashMap<>();
-        java.util.List<String> fieldNames = tableCall.getType().getFieldNames();
-        for (int i = 0; i < fieldNames.size(); i++) {
-            column2Index.put(fieldNames.get(i), i);
-        }
-        List<Integer> referenceKeys =
-                descriptorCall.getOperands().stream()
-                        .map(
-                                operand -> {
-                                    if (operand instanceof RexLiteral) {
-                                        RexLiteral literal = (RexLiteral) operand;
-                                        String fieldName = RexLiteral.stringValue(literal);
-                                        Integer index = column2Index.get(fieldName);
-                                        if (index == null) {
-                                            throw new TableException(
-                                                    String.format(
-                                                            "Field %s is not found in input schema: %s.",
-                                                            fieldName, tableCall.getType()));
-                                        }
-                                        return index;
-                                    } else {
-                                        throw new TableException(
-                                                String.format(
-                                                        "Unknown operand for descriptor operator: %s.",
-                                                        operand));
-                                    }
-                                })
-                        .collect(Collectors.toList());
-        assert referenceKeys.size() == 1;
-
-        RexInputRef fieldAccess = extractOperand(operand -> operand instanceof RexInputRef);
-        int queryColumn = fieldAccess.getIndex();
-
         Map<Integer, FunctionCallUtil.FunctionParam> mappings =
-                Collections.singletonMap(
-                        referenceKeys.get(0), new FunctionCallUtil.FieldRef(queryColumn));
-        FunctionCallUtil.FunctionParam topK =
-                new FunctionCallUtil.Constant(
-                        DataTypes.INT().getLogicalType(),
-                        extractOperand(operand -> operand instanceof RexLiteral));
-
+                Collections.singletonMap(searchColumn, new FunctionCallUtil.FieldRef(queryColumn));
+        FunctionCallUtil.FunctionParam topKParameter =
+                new FunctionCallUtil.Constant(DataTypes.INT().getLogicalType(), (RexLiteral) topK);
         return new StreamExecVectorSearch(
                 ShortcutUtils.unwrapTableConfig(this),
                 JoinTypeUtil.getFlinkJoinType(joinType),
                 new TemporalTableSourceSpec(temporalTable),
-                topK,
+                topKParameter,
                 mappings,
                 InputProperty.DEFAULT,
                 FlinkTypeFactory.toLogicalRowType(getRowType()),
@@ -158,36 +138,10 @@ public class StreamPhysicalVectorSearch extends StreamPhysicalCorrelateBase
 
     @Override
     public RelWriter explainTerms(RelWriter pw) {
-        Optional<RexNode> condition = JavaScalaConversionUtil.toJava(condition());
-        return pw.input("input", getInput())
-                .item("invocation", scan().getCall())
-                .item(
-                        "table",
-                        ((TableSourceTable) temporalTable)
-                                .contextResolvedTable()
-                                .getIdentifier()
-                                .asSummaryString())
-                .item("select", String.join(",", getRowType().getFieldNames()))
-                .item("rowType", getRowType())
+        return super.explainTerms(pw)
                 .item("joinType", joinType)
-                .itemIf("condition", condition.orElse(null), condition.isPresent());
-    }
-
-    @SuppressWarnings("unchecked")
-    private <T> Optional<T> extractOptionalOperand(Predicate<RexNode> predicate) {
-        return (Optional<T>)
-                ((RexCall) scan().getCall()).getOperands().stream().filter(predicate).findFirst();
-    }
-
-    @SuppressWarnings("unchecked")
-    private <T> T extractOperand(Predicate<RexNode> predicate) {
-        return (T)
-                extractOptionalOperand(predicate)
-                        .orElseThrow(
-                                () ->
-                                        new TableException(
-                                                String.format(
-                                                        "VectorSearch doesn't contain specified operand: %s",
-                                                        scan().getCall().toString())));
+                .item("queryColumn", queryColumn)
+                .item("searchColumn", searchColumn)
+                .item("topK", topK);
     }
 }

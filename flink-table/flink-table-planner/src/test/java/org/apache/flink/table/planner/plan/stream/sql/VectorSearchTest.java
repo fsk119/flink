@@ -113,13 +113,23 @@ public class VectorSearchTest extends TableTestBase {
 
     @Test
     void testRunVectorSearch4() {
-
         util.tableEnv()
                 .executeSql("CREATE VIEW p AS SELECT * FROM VectorTable JOIN MyTable ON e = e1");
         String sql =
                 "SELECT p.a1 FROM MyTable, lateral TABLE(\n"
                         + "vector_search(\n"
                         + "    TABLE p, DESCRIPTOR(`e1`), MyTable.e, 10, 'cosine'"
+                        + ")\n"
+                        + ") as p";
+        util.verifyRelPlan(sql);
+    }
+
+    @Test
+    void testRunVectorSearch5() {
+        String sql =
+                "SELECT p.a1 FROM MyTable, lateral TABLE(\n"
+                        + "vector_search(\n"
+                        + "     SELECT * FROM VectorTable WHERE a1 = MyTable.a PARTITION BY a1, DESCRIPTOR(`e1`), MyTable.e, 10, 'cosine'"
                         + ")\n"
                         + ") as p";
         util.verifyRelPlan(sql);

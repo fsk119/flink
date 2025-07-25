@@ -48,6 +48,10 @@ object FlinkStreamRuleSets {
     CoreRules.JOIN_SUB_QUERY_TO_CORRELATE
   )
 
+  val VECTOR_SEARCH_RULES: RuleSet = RuleSets.ofList(
+    LogicalCorrelateToVectorSearchRule.INSTANCE
+  )
+
   /**
    * Expand plan by replacing references to tables into a proper plan sub trees. Those rules can
    * create new plan nodes.
@@ -337,6 +341,7 @@ object FlinkStreamRuleSets {
     FlinkLogicalExpand.CONVERTER,
     FlinkLogicalRank.CONVERTER,
     FlinkLogicalWatermarkAssigner.CONVERTER,
+    FlinkLogicalVectorSearch.CONVERTER,
     FlinkLogicalWindowAggregate.CONVERTER,
     FlinkLogicalWindowTableAggregate.CONVERTER,
     FlinkLogicalSnapshot.CONVERTER,
@@ -437,6 +442,8 @@ object FlinkStreamRuleSets {
     AsyncCalcSplitRule.ONE_PER_CALC_SPLIT,
     // Split async calls from correlates
     AsyncCorrelateSplitRule.INSTANCE
+    //
+
   )
 
   /** RuleSet to do physical optimize for stream */

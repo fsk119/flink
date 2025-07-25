@@ -90,10 +90,10 @@ public class MLPredictTableFunctionTest extends TableTestBase {
     }
 
     @Test
-    public void testOptionalNamedArguments() {
+    public void testOptionalNamedArguments1() {
         String sql =
                 "SELECT *\n"
-                        + "FROM TABLE(ML_PREDICT(INPUT => TABLE MyTable, "
+                        + "FROM TABLE(ML_PREDICT(INPUT => SELECT * FROM MyTable partition by productid order by orderId , "
                         + "MODEL  => MODEL MyModel, "
                         + "ARGS   => DESCRIPTOR(a, b),"
                         + "CONFIG => MAP['key', 'value']))";

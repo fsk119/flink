@@ -210,4 +210,9 @@ public class SqlVectorSearch extends SqlFunction implements SqlTableFunction {
             return i > 4;
         }
     }
+
+    @Override
+    public @Nullable TableCharacteristic tableCharacteristic(int ordinal) {
+        return tableParams.get(ordinal);
+    }
 }
