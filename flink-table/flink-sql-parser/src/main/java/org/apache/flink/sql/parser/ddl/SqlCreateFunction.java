@@ -31,6 +31,7 @@ import org.apache.calcite.sql.parser.SqlParserPos;
 import org.apache.calcite.util.ImmutableNullableList;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import java.util.List;
 
@@ -46,6 +47,8 @@ public class SqlCreateFunction extends SqlCreate {
 
     private final SqlCharStringLiteral functionClassName;
 
+    private final SqlScriptLiteral functionDefinition;
+
     private final String functionLanguage;
 
     private final boolean isTemporary;
@@ -57,7 +60,8 @@ public class SqlCreateFunction extends SqlCreate {
     public SqlCreateFunction(
             SqlParserPos pos,
             SqlIdentifier functionIdentifier,
-            SqlCharStringLiteral functionClassName,
+            @Nullable SqlCharStringLiteral functionClassName,
+            @Nullable SqlScriptLiteral functionDefinition,
             String functionLanguage,
             boolean ifNotExists,
             boolean isTemporary,
@@ -65,7 +69,8 @@ public class SqlCreateFunction extends SqlCreate {
             SqlNodeList resourceInfos) {
         super(OPERATOR, pos, false, ifNotExists);
         this.functionIdentifier = requireNonNull(functionIdentifier);
-        this.functionClassName = requireNonNull(functionClassName);
+        this.functionClassName = functionClassName;
+        this.functionDefinition = functionDefinition;
         this.isSystemFunction = isSystemFunction;
         this.isTemporary = isTemporary;
         this.functionLanguage = functionLanguage;
@@ -98,7 +103,13 @@ public class SqlCreateFunction extends SqlCreate {
         }
         functionIdentifier.unparse(writer, leftPrec, rightPrec);
         writer.keyword("AS");
-        functionClassName.unparse(writer, leftPrec, rightPrec);
+        if (functionClassName != null) {
+            functionClassName.unparse(writer, leftPrec, rightPrec);
+        }
+        if (functionDefinition != null) {
+            functionDefinition.unparse(writer, leftPrec, rightPrec);
+        }
+
         if (functionLanguage != null) {
             writer.keyword("LANGUAGE");
             writer.keyword(functionLanguage);
@@ -128,6 +139,10 @@ public class SqlCreateFunction extends SqlCreate {
 
     public SqlCharStringLiteral getFunctionClassName() {
         return this.functionClassName;
+    }
+
+    public SqlScriptLiteral getFunctionDefinition() {
+        return this.functionDefinition;
     }
 
     public String getFunctionLanguage() {

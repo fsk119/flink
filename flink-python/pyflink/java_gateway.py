@@ -181,6 +181,14 @@ class PythonFunctionFactory(object):
         udf_wrapper = getattr(importlib.import_module(moduleName), objectName)
         return udf_wrapper._java_user_defined_function()
 
+    def compilePythonFunction(self, code, objectName):
+        namespace = {}
+        import textwrap
+        print(textwrap.dedent(code))
+        exec(textwrap.dedent(code), namespace)
+        print(namespace)
+        return namespace[objectName]._java_user_defined_function()
+
     class Java:
         implements = ["org.apache.flink.client.python.PythonFunctionFactory"]
 

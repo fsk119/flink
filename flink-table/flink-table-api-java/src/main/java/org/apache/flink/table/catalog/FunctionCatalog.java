@@ -655,7 +655,7 @@ public final class FunctionCatalog {
                                             catalogFunction,
                                             resourceManager::getUserClassLoader);
                 } else {
-                    fd = getFunctionDefinition(oi.asSummaryString(), catalogFunction);
+                    fd = getFunctionDefinition(oi.getObjectName(), catalogFunction);
                 }
 
                 return Optional.of(
@@ -883,6 +883,11 @@ public final class FunctionCatalog {
         @Override
         public List<ResourceUri> getFunctionResources() {
             return Collections.emptyList();
+        }
+
+        @Override
+        public Optional<String> getFunctionDefinition() {
+            throw new UnsupportedOperationException();
         }
 
         public FunctionDefinition getDefinition() {

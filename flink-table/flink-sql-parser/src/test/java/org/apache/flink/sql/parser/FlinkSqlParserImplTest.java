@@ -113,6 +113,24 @@ class FlinkSqlParserImplTest extends SqlParserTest {
     }
 
     @Test
+    void testCreateInlineFunction() {
+        sql("CREATE FUNCTION inline AS $$ import json" + " $$")
+                .ok("CREATE FUNCTION `INLINE` AS $$ import json $$");
+
+        sql("CREATE FUNCTION inline AS $$\n"
+                        + "import json\n"
+                        + "def addone_py(i):\n"
+                        + " return i+1\n"
+                        + "$$")
+                .ok(
+                        "CREATE FUNCTION `INLINE` AS $$\n"
+                                + "import json\n"
+                                + "def addone_py(i):\n"
+                                + " return i+1\n"
+                                + "$$");
+    }
+
+    @Test
     void testArrayAgg() {
         sql("select\n"
                         + "  array_agg(ename respect nulls order by deptno, ename) as c1,\n"

@@ -720,6 +720,27 @@ def float_equal(a, b, rel_tol=1e-09, abs_tol=0.0):
 
 class PyFlinkStreamUserDefinedFunctionTests(UserDefinedFunctionTests,
                                             PyFlinkStreamTableTestCase):
+
+    def test_register_func(self):
+        import textwrap
+        sql = textwrap.dedent(
+        """
+        CREATE FUNCTION func1 AS $$
+        
+        from pyflink.table.udf import udf
+        from pyflink.table import DataTypes
+        @udf(input_types=DataTypes.STRING(), result_type=DataTypes.STRING())
+        def func1(str)-> str:
+            return str + str
+            
+        $$ LANGUAGE PYTHON
+        """)
+        self.t_env.execute_sql(sql)
+        self.t_env.execute_sql("""
+        SELECT func1('hello')
+        """).print()
+
+
     def test_deterministic(self):
         add_one = udf(lambda i: i + 1, result_type=DataTypes.BIGINT())
         self.assertTrue(add_one._deterministic)

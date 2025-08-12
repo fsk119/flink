@@ -222,9 +222,19 @@ public final class UserDefinedFunctionHelper {
                         throw new IllegalStateException(
                                 "Python functions are not supported at this location.");
                     }
-                    return (UserDefinedFunction)
-                            PythonFunctionUtils.getPythonFunction(
-                                    catalogFunction.getClassName(), config, classLoader);
+                    if (catalogFunction.getClassName() != null) {
+                        return (UserDefinedFunction)
+                                PythonFunctionUtils.getPythonFunction(
+                                        catalogFunction.getClassName(), config, classLoader);
+                    } else {
+                        return (UserDefinedFunction)
+                                PythonFunctionUtils.compilePythonFunction(
+                                        name,
+                                        catalogFunction.getFunctionDefinition().get(),
+                                        config,
+                                        classLoader);
+                    }
+
                 case JAVA:
                 case SCALA:
                     final Class<?> functionClass =

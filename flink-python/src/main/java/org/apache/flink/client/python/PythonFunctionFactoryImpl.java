@@ -48,6 +48,11 @@ public class PythonFunctionFactoryImpl implements PythonFunctionFactory, Closeab
     }
 
     @Override
+    public PythonFunction compilePythonFunction(String code, String objectName) {
+        return realPythonFunctionFactory.compilePythonFunction(code, objectName);
+    }
+
+    @Override
     public void close() {
         if (shutdownHook != null) {
             if (Runtime.getRuntime().removeShutdownHook(shutdownHook)) {

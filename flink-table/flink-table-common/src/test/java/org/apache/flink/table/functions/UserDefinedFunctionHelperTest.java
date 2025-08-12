@@ -291,6 +291,11 @@ class UserDefinedFunctionHelperTest {
         public List<ResourceUri> getFunctionResources() {
             return Collections.emptyList();
         }
+
+        @Override
+        public Optional<String> getFunctionDefinition() {
+            return Optional.empty();
+        }
     }
 
     // --------------------------------------------------------------------------------------------

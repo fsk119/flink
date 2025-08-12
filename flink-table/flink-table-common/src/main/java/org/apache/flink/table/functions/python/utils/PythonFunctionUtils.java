@@ -49,4 +49,27 @@ public enum PythonFunctionUtils {
                     t);
         }
     }
+
+    public static PythonFunction compilePythonFunction(
+            String name, String code, ReadableConfig config, ClassLoader classLoader) {
+        try {
+            Class pythonFunctionFactory =
+                    Class.forName(
+                            "org.apache.flink.client.python.PythonFunctionFactory",
+                            true,
+                            classLoader);
+            return (PythonFunction)
+                    pythonFunctionFactory
+                            .getMethod(
+                                    "compilePythonFunction",
+                                    String.class,
+                                    String.class,
+                                    ReadableConfig.class,
+                                    ClassLoader.class)
+                            .invoke(null, code, name, config, classLoader);
+        } catch (Throwable t) {
+            throw new IllegalStateException(
+                    String.format("Instantiating python function '%s' failed.", name), t);
+        }
+    }
 }

@@ -397,6 +397,7 @@ SqlCreate SqlCreateFunction(Span s, boolean replace, boolean isTemporary) :
     boolean isSystemFunction = false;
     SqlNodeList resourceInfos = SqlNodeList.EMPTY;
     SqlParserPos functionLanguagePos = null;
+    SqlScriptLiteral functionDefinition = null;
 }
 {
     (
@@ -417,10 +418,16 @@ SqlCreate SqlCreateFunction(Span s, boolean replace, boolean isTemporary) :
         functionIdentifier = CompoundIdentifier()
     )
 
-    <AS> <QUOTED_STRING> {
-        String p = SqlParserUtil.parseString(token.image);
-        functionClassName = SqlLiteral.createCharString(p, getPos());
-    }
+    <AS> (
+        <QUOTED_STRING> {
+            functionClassName = SqlLiteral.createCharString(SqlParserUtil.parseString(token.image), getPos());
+        }
+        |
+        <DOLLAR_QUOTED_STRING> {
+            String p = token.image;
+            functionDefinition = SqlScriptLiteral.create(p.substring(2, p.length() - 2), getPos());
+        }
+    )
     [
         <LANGUAGE>
         (
@@ -471,6 +478,7 @@ SqlCreate SqlCreateFunction(Span s, boolean replace, boolean isTemporary) :
                     s.pos(),
                     functionIdentifier,
                     functionClassName,
+                    functionDefinition,
                     functionLanguage,
                     ifNotExists,
                     isTemporary,

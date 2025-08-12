@@ -69,4 +69,6 @@ public interface CatalogFunction {
      * @return an {@link ResourceUri} list of the function
      */
     List<ResourceUri> getFunctionResources();
+
+    Optional<String> getFunctionDefinition();
 }

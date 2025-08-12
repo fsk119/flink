@@ -34,6 +34,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 @Internal
 public class CatalogFunctionImpl implements CatalogFunction {
     private final String className; // Fully qualified class name of the function
+    private final String definition;
     private final FunctionLanguage functionLanguage;
     private final List<ResourceUri> resourceUris;
 
@@ -47,9 +48,18 @@ public class CatalogFunctionImpl implements CatalogFunction {
 
     public CatalogFunctionImpl(
             String className, FunctionLanguage functionLanguage, List<ResourceUri> resourceUris) {
-        checkArgument(
-                !StringUtils.isNullOrWhitespaceOnly(className),
-                "className cannot be null or empty");
+        this.className = className;
+        this.definition = null;
+        this.functionLanguage = checkNotNull(functionLanguage, "functionLanguage cannot be null");
+        this.resourceUris = resourceUris;
+    }
+
+    public CatalogFunctionImpl(
+            String className,
+            String definition,
+            FunctionLanguage functionLanguage,
+            List<ResourceUri> resourceUris) {
+        this.definition = definition;
         this.className = className;
         this.functionLanguage = checkNotNull(functionLanguage, "functionLanguage cannot be null");
         this.resourceUris = resourceUris;
@@ -63,7 +73,10 @@ public class CatalogFunctionImpl implements CatalogFunction {
     @Override
     public CatalogFunction copy() {
         return new CatalogFunctionImpl(
-                getClassName(), functionLanguage, Collections.unmodifiableList(resourceUris));
+                getClassName(),
+                definition,
+                functionLanguage,
+                Collections.unmodifiableList(resourceUris));
     }
 
     @Override
@@ -84,6 +97,11 @@ public class CatalogFunctionImpl implements CatalogFunction {
     @Override
     public List<ResourceUri> getFunctionResources() {
         return resourceUris;
+    }
+
+    @Override
+    public Optional<String> getFunctionDefinition() {
+        return Optional.ofNullable(definition);
     }
 
     @Override

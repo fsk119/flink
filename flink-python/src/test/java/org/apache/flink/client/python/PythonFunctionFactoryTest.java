@@ -58,16 +58,17 @@ public class PythonFunctionFactoryTest {
                         .getAbsolutePath();
         new File(tmpdir).mkdir();
         File pyFilePath = new File(tmpdir, "test1.py");
-        try (OutputStream out = new FileOutputStream(pyFilePath)) {
-            String code =
-                    ""
-                            + "from pyflink.table.udf import udf\n"
-                            + "from pyflink.table import DataTypes\n"
-                            + "@udf(input_types=DataTypes.STRING(), result_type=DataTypes.STRING())\n"
-                            + "def func1(str):\n"
-                            + "    return str + str\n";
-            out.write(code.getBytes());
-        }
+        //        try (OutputStream out = new FileOutputStream(pyFilePath)) {
+        //            String code =
+        //                    ""
+        //                            + "from pyflink.table.udf import udf\n"
+        //                            + "from pyflink.table import DataTypes\n"
+        //                            + "@udf(input_types=DataTypes.STRING(),
+        // result_type=DataTypes.STRING())\n"
+        //                            + "def func1(str):\n"
+        //                            + "    return str + str\n";
+        //            out.write(code.getBytes());
+        //        }
         StreamExecutionEnvironment sEnv = StreamExecutionEnvironment.getExecutionEnvironment();
         tableEnv = StreamTableEnvironment.create(sEnv);
         tableEnv.getConfig().set(PYTHON_FILES, pyFilePath.getAbsolutePath());
@@ -82,7 +83,16 @@ public class PythonFunctionFactoryTest {
 
     public static void testPythonFunctionFactory() {
         // catalog
-        tableEnv.executeSql("create function func1 as 'test1.func1' language python");
+
+        String code =
+                "$$\n"
+                        + "from pyflink.table.udf import udf\n"
+                        + "from pyflink.table import DataTypes\n"
+                        + "@udf(input_types=DataTypes.STRING(), result_type=DataTypes.STRING())\n"
+                        + "def func1(str):\n"
+                        + "    return str + str\n"
+                        + "$$";
+        tableEnv.executeSql(String.format("create function func1 as %s language python", code));
         verifyPlan(sourceTable.select(call("func1", $("str"))), tableEnv);
 
         // catalog

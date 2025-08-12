@@ -269,6 +269,7 @@ def launch_gateway_server_process(env, args):
         command = [
             java_executable,
             *jvm_args,
+            "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005",
             "-XX:+IgnoreUnrecognizedVMOptions",
             "--add-opens=jdk.proxy2/jdk.proxy2=ALL-UNNAMED",
             *jvm_opts,

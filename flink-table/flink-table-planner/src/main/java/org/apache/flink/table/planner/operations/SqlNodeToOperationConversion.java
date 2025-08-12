@@ -569,7 +569,16 @@ public class SqlNodeToOperationConversion {
             FunctionLanguage language = parseLanguage(sqlCreateFunction.getFunctionLanguage());
             CatalogFunction catalogFunction =
                     new CatalogFunctionImpl(
-                            sqlCreateFunction.getFunctionClassName().getValueAs(String.class),
+                            sqlCreateFunction.getFunctionClassName() == null
+                                    ? null
+                                    : sqlCreateFunction
+                                            .getFunctionClassName()
+                                            .getValueAs(String.class),
+                            sqlCreateFunction.getFunctionDefinition() == null
+                                    ? null
+                                    : sqlCreateFunction
+                                            .getFunctionDefinition()
+                                            .getValueAs(String.class),
                             language,
                             resourceUris);
             ObjectIdentifier identifier = catalogManager.qualifyIdentifier(unresolvedIdentifier);

@@ -102,6 +102,8 @@ public interface PythonFunctionFactory {
      */
     PythonFunction getPythonFunction(String moduleName, String objectName);
 
+    PythonFunction compilePythonFunction(String code, String objectName);
+
     /**
      * Returns PythonFunction according to the fully qualified name of the Python UDF i.e
      * ${moduleName}.${functionName} or ${moduleName}.${className}.
@@ -136,6 +138,25 @@ public interface PythonFunctionFactory {
                 PYTHON_FUNCTION_FACTORY_CACHE.get(CacheKey.of(mergedConfig, classLoader));
         ensureCacheCleanupExecutorServiceStarted();
         return pythonFunctionFactory.getPythonFunction(moduleName, objectName);
+    }
+
+    static PythonFunction compilePythonFunction(
+            String code, String objectName, ReadableConfig config, ClassLoader classLoader)
+            throws ExecutionException {
+        Configuration mergedConfig =
+                Configuration.fromMap(
+                        StreamExecutionEnvironment.getExecutionEnvironment()
+                                .getConfiguration()
+                                .toMap());
+        if (config instanceof TableConfig) {
+            PythonDependencyUtils.merge(mergedConfig, ((TableConfig) config).getConfiguration());
+        } else {
+            PythonDependencyUtils.merge(mergedConfig, (Configuration) config);
+        }
+        PythonFunctionFactory pythonFunctionFactory =
+                PYTHON_FUNCTION_FACTORY_CACHE.get(CacheKey.of(mergedConfig, classLoader));
+        ensureCacheCleanupExecutorServiceStarted();
+        return pythonFunctionFactory.compilePythonFunction(code, objectName);
     }
 
     static void ensureCacheCleanupExecutorServiceStarted() {

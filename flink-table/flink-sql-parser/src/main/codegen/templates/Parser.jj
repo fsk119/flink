@@ -8770,6 +8770,8 @@ void NonReservedKeyWord2of3() :
     < #CHARSETNAME: (["a"-"z","A"-"Z","0"-"9"])
     (["a"-"z","A"-"Z","0"-"9",":",".","-","_"])*
     >
+|
+    < DOLLAR_QUOTED_STRING: <DOUBLE_DOLLAR> (~["$"] | "$" ~["$"])* <DOUBLE_DOLLAR>>
 }
 
 // BigQuery supports single- and double-quoted literals with back-slash
