@@ -80,6 +80,7 @@ class CatalogBaseTableResolutionTest {
                     .column("county", DataTypes.VARCHAR(200))
                     .columnByMetadata("topic", DataTypes.VARCHAR(200), true)
                     .withComment("") // empty column comment
+                    .column("ref", "OBJECT_REF")
                     .columnByMetadata("orig_ts", DataTypes.TIMESTAMP(3), "timestamp")
                     .columnByExpression("ts", COMPUTED_SQL)
                     .withComment("This is a computed column")
@@ -106,6 +107,7 @@ class CatalogBaseTableResolutionTest {
                     .add(TableColumn.physical("region", DataTypes.VARCHAR(200)))
                     .add(TableColumn.physical("county", DataTypes.VARCHAR(200)))
                     .add(TableColumn.metadata("topic", DataTypes.VARCHAR(200), true))
+                    .add(TableColumn.physical("ref", DataTypes.OBJECT_REF()))
                     .add(TableColumn.metadata("orig_ts", DataTypes.TIMESTAMP(3), "timestamp"))
                     .add(TableColumn.computed("ts", DataTypes.TIMESTAMP(3), COMPUTED_SQL))
                     .watermark("ts", WATERMARK_SQL, DataTypes.TIMESTAMP(3))
@@ -128,6 +130,7 @@ class CatalogBaseTableResolutionTest {
                             Column.physical("county", DataTypes.VARCHAR(200)),
                             Column.metadata("topic", DataTypes.VARCHAR(200), null, true)
                                     .withComment(""), // empty column comment
+                            Column.physical("ref", DataTypes.OBJECT_REF()),
                             Column.metadata("orig_ts", DataTypes.TIMESTAMP(3), "timestamp", false),
                             Column.computed("ts", COMPUTED_COLUMN_RESOLVED)
                                     .withComment("This is a computed column")),
@@ -289,7 +292,7 @@ class CatalogBaseTableResolutionTest {
                 .hasRootCauseMessage(
                         "Invalid partition key 'countyINVALID'. A partition key must "
                                 + "reference a physical column in the schema. Available "
-                                + "columns are: [id, region, county]");
+                                + "columns are: [id, region, county, ref]");
     }
 
     @Test
@@ -324,7 +327,7 @@ class CatalogBaseTableResolutionTest {
                 .hasRootCauseMessage(
                         "Invalid bucket key 'countyINVALID'. A bucket key for a distribution must "
                                 + "reference a physical column in the schema. "
-                                + "Available columns are: [id, region, county]");
+                                + "Available columns are: [id, region, county, ref]");
     }
 
     @Test
@@ -379,14 +382,16 @@ class CatalogBaseTableResolutionTest {
         properties.put("schema.3.comment", "");
         properties.put("schema.3.metadata", "topic");
         properties.put("schema.3.virtual", "true");
-        properties.put("schema.4.name", "orig_ts");
-        properties.put("schema.4.data-type", "TIMESTAMP(3)");
-        properties.put("schema.4.metadata", "timestamp");
-        properties.put("schema.4.virtual", "false");
-        properties.put("schema.5.name", "ts");
+        properties.put("schema.4.name", "ref");
+        properties.put("schema.4.data-type", "OBJECT_REF");
+        properties.put("schema.5.name", "orig_ts");
         properties.put("schema.5.data-type", "TIMESTAMP(3)");
-        properties.put("schema.5.expr", "orig_ts - INTERVAL '60' MINUTE");
-        properties.put("schema.5.comment", "This is a computed column");
+        properties.put("schema.5.metadata", "timestamp");
+        properties.put("schema.5.virtual", "false");
+        properties.put("schema.6.name", "ts");
+        properties.put("schema.6.data-type", "TIMESTAMP(3)");
+        properties.put("schema.6.expr", "orig_ts - INTERVAL '60' MINUTE");
+        properties.put("schema.6.comment", "This is a computed column");
         properties.put("schema.watermark.0.rowtime", "ts");
         properties.put("schema.watermark.0.strategy.data-type", "TIMESTAMP(3)");
         properties.put("schema.watermark.0.strategy.expr", "ts - INTERVAL '5' SECOND");

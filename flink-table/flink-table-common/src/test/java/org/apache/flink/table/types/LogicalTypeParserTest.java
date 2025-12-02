@@ -45,6 +45,7 @@ import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.MapType;
 import org.apache.flink.table.types.logical.MultisetType;
 import org.apache.flink.table.types.logical.NullType;
+import org.apache.flink.table.types.logical.ObjectRefType;
 import org.apache.flink.table.types.logical.RawType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.SmallIntType;
@@ -306,6 +307,10 @@ public class LogicalTypeParserTest {
                         .expectType(createGenericLegacyType()),
                 TestSpec.forString("VARIANT").expectType(new VariantType()),
                 TestSpec.forString("VARIANT NOT NULL").expectType(new VariantType(false)),
+                TestSpec.forString("OBJECT_REF").expectType(new ObjectRefType()),
+                TestSpec.forString("OBJECT_REF NOT NULL").expectType(new ObjectRefType(false)),
+                TestSpec.forString("ARRAY<OBJECT_REF>")
+                        .expectType(new ArrayType(new ObjectRefType())),
 
                 // error message testing
 

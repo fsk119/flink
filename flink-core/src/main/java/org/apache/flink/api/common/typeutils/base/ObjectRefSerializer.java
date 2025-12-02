@@ -44,7 +44,7 @@ public class ObjectRefSerializer extends TypeSerializerSingleton<ObjectRef> {
 
     private static final long serialVersionUID = 1L;
 
-    private static final ObjectRefSerializer INSTANCE = new ObjectRefSerializer();
+    public static final ObjectRefSerializer INSTANCE = new ObjectRefSerializer();
 
     @Override
     public boolean isImmutableType() {

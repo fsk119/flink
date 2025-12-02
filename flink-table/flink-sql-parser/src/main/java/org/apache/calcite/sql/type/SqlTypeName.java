@@ -163,7 +163,9 @@ public enum SqlTypeName {
      * VARIANT data type, a dynamically-typed value that can have at runtime any of the other data
      * types in this table.
      */
-    VARIANT(PrecScale.NO_NO, false, Types.OTHER, SqlTypeFamily.VARIANT);
+    VARIANT(PrecScale.NO_NO, false, Types.OTHER, SqlTypeFamily.VARIANT),
+
+    OBJECT_REF(PrecScale.NO_NO, false, Types.OTHER, SqlTypeFamily.OBJECT_REF);
 
     public static final int MAX_DATETIME_PRECISION = 3;
 

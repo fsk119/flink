@@ -49,6 +49,7 @@ import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.MapType;
 import org.apache.flink.table.types.logical.MultisetType;
 import org.apache.flink.table.types.logical.NullType;
+import org.apache.flink.table.types.logical.ObjectRefType;
 import org.apache.flink.table.types.logical.RawType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.RowType.RowField;
@@ -1061,6 +1062,10 @@ public final class DataTypes {
      */
     public static DataType VARIANT() {
         return new AtomicDataType(new VariantType());
+    }
+
+    public static DataType OBJECT_REF() {
+        return new AtomicDataType(new ObjectRefType());
     }
 
     // --------------------------------------------------------------------------------------------

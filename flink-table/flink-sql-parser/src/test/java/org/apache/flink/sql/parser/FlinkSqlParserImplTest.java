@@ -137,6 +137,18 @@ class FlinkSqlParserImplTest extends SqlParserTest {
                 .ok("CAST(`A` AS MAP< VARCHAR MULTISET, MAP< INTEGER, INTEGER > >)");
     }
 
+    @Test
+    void testCreateObjectType() {
+        sql("create table src(a object_ref) with ( 'connector' = 'test' )")
+                .ok(
+                        "CREATE TABLE `SRC` (\n"
+                                + "  `A` `OBJECT_REF`\n"
+                                + ")\n"
+                                + "WITH (\n"
+                                + "  'connector' = 'test'\n"
+                                + ")");
+    }
+
     // DESCRIBE SCHEMA
     @Disabled
     @Test

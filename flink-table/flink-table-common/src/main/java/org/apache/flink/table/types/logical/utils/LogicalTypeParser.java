@@ -43,6 +43,7 @@ import org.apache.flink.table.types.logical.LogicalTypeRoot;
 import org.apache.flink.table.types.logical.MapType;
 import org.apache.flink.table.types.logical.MultisetType;
 import org.apache.flink.table.types.logical.NullType;
+import org.apache.flink.table.types.logical.ObjectRefType;
 import org.apache.flink.table.types.logical.RawType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.RowType.RowField;
@@ -334,7 +335,8 @@ public final class LogicalTypeParser {
         NOT,
         DESCRIPTOR,
         STRUCTURED,
-        VARIANT
+        VARIANT,
+        OBJECT_REF
     }
 
     private static final Set<String> KEYWORDS =
@@ -582,6 +584,8 @@ public final class LogicalTypeParser {
                     return new DescriptorType();
                 case VARIANT:
                     return new VariantType();
+                case OBJECT_REF:
+                    return new ObjectRefType();
                 default:
                     throw parsingError("Unsupported type: " + token().value);
             }

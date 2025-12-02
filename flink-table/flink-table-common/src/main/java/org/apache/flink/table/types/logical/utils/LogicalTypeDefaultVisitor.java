@@ -37,6 +37,7 @@ import org.apache.flink.table.types.logical.LogicalTypeVisitor;
 import org.apache.flink.table.types.logical.MapType;
 import org.apache.flink.table.types.logical.MultisetType;
 import org.apache.flink.table.types.logical.NullType;
+import org.apache.flink.table.types.logical.ObjectRefType;
 import org.apache.flink.table.types.logical.RawType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.SmallIntType;
@@ -190,6 +191,10 @@ public abstract class LogicalTypeDefaultVisitor<R> implements LogicalTypeVisitor
     @Override
     public R visit(RawType<?> rawType) {
         return defaultMethod(rawType);
+    }
+
+    public R visit(ObjectRefType objectRefType) {
+        return defaultMethod(objectRefType);
     }
 
     @Override

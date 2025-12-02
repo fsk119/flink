@@ -78,6 +78,7 @@ public enum SqlTypeFamily implements RelDataTypeFamily {
     COLUMN_LIST,
     GEO,
     VARIANT,
+    OBJECT_REF,
     /** Like ANY, but do not even validate the operand. It may not be an expression. */
     IGNORE;
 

@@ -45,6 +45,7 @@ import org.apache.flink.table.types.logical.LogicalTypeVisitor;
 import org.apache.flink.table.types.logical.MapType;
 import org.apache.flink.table.types.logical.MultisetType;
 import org.apache.flink.table.types.logical.NullType;
+import org.apache.flink.table.types.logical.ObjectRefType;
 import org.apache.flink.table.types.logical.RawType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.SmallIntType;
@@ -247,6 +248,11 @@ public final class LogicalTypeDataTypeConverter {
         @Override
         public DataType visit(RawType<?> rawType) {
             return new AtomicDataType(rawType);
+        }
+
+        @Override
+        public DataType visit(ObjectRefType objectRefType) {
+            return new AtomicDataType(objectRefType);
         }
 
         @Override
