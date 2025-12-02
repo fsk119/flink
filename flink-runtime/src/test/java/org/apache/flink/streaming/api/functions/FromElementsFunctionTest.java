@@ -22,6 +22,7 @@ import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.serialization.SerializerConfigImpl;
 import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.common.typeutils.base.IntSerializer;
 import org.apache.flink.api.java.typeutils.GenericTypeInfo;
@@ -36,6 +37,8 @@ import org.apache.flink.streaming.api.functions.source.legacy.SourceFunction;
 import org.apache.flink.streaming.api.operators.StreamSource;
 import org.apache.flink.streaming.util.AbstractStreamOperatorTestHarness;
 import org.apache.flink.types.Value;
+import org.apache.flink.types.objectref.ByteArrayAccessor;
+import org.apache.flink.types.objectref.ObjectRef;
 import org.apache.flink.util.InstantiationUtil;
 
 import org.junit.jupiter.api.Test;
@@ -74,6 +77,23 @@ class FromElementsFunctionTest {
         source.run(new ListSourceContext<>(result));
 
         assertThat(result).containsExactly(data);
+    }
+
+    @Test
+    void testObjectRef() throws Exception {
+        ObjectRef[] references = {
+            new ObjectRef("application/octet-stream", new ByteArrayAccessor(new byte[] {1, 2, 3})),
+            new ObjectRef("application/octet-stream", new ByteArrayAccessor(new byte[] {4, 5})),
+        };
+
+        FromElementsFunction<ObjectRef> source =
+                new FromElementsFunction<>(
+                        Types.OBJECT_REF.createSerializer(new SerializerConfigImpl()), references);
+
+        List<ObjectRef> result = new ArrayList<>();
+        source.run(new ListSourceContext<>(result));
+
+        assertThat(result).containsExactly(references);
     }
 
     @Test
