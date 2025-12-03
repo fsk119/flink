@@ -139,10 +139,10 @@ class FlinkSqlParserImplTest extends SqlParserTest {
 
     @Test
     void testCreateObjectType() {
-        sql("create table src(a object_ref) with ( 'connector' = 'test' )")
+        sql("create table src(b string, a object_ref) with ( 'connector' = 'test' )")
                 .ok(
                         "CREATE TABLE `SRC` (\n"
-                                + "  `A` `OBJECT_REF`\n"
+                                + "  `A` OBJECT_REF\n"
                                 + ")\n"
                                 + "WITH (\n"
                                 + "  'connector' = 'test'\n"

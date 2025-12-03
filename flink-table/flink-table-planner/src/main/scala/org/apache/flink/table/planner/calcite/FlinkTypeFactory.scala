@@ -159,6 +159,9 @@ class FlinkTypeFactory(
       case LogicalTypeRoot.VARIANT =>
         createSqlType(SqlTypeName.VARIANT)
 
+      case LogicalTypeRoot.OBJECT_REF =>
+        createSqlType(SqlTypeName.OBJECT_REF)
+
       case _ @t =>
         throw new TableException(s"Type is not supported: $t")
     }
@@ -682,6 +685,8 @@ object FlinkTypeFactory {
       case CURSOR => new TypeInformationRawType[Nothing](new NothingTypeInfo)
 
       case VARIANT => new VariantType()
+
+      case OBJECT_REF => new ObjectRefType()
 
       case OTHER if relDataType.isInstanceOf[RawRelDataType] =>
         relDataType.asInstanceOf[RawRelDataType].getRawType

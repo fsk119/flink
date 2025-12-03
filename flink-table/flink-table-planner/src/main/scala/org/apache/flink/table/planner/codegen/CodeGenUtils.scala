@@ -43,6 +43,7 @@ import org.apache.flink.table.types.logical.utils.LogicalTypeUtils.toInternalCon
 import org.apache.flink.table.types.utils.DataTypeUtils.isInternal
 import org.apache.flink.table.utils.EncodingUtils
 import org.apache.flink.types.{ColumnList, Row, RowKind}
+import org.apache.flink.types.objectref.ObjectRef
 import org.apache.flink.types.variant.Variant
 
 import java.lang.{Boolean => JBoolean, Byte => JByte, Double => JDouble, Float => JFloat, Integer => JInt, Long => JLong, Object => JObject, Short => JShort}
@@ -275,6 +276,7 @@ object CodeGenUtils {
     case RAW => className[BinaryRawValueData[_]]
     case DESCRIPTOR => className[ColumnList]
     case VARIANT => className[Variant]
+    case OBJECT_REF => className[ObjectRef]
     case SYMBOL | UNRESOLVED =>
       throw new IllegalArgumentException("Illegal type: " + t)
   }
@@ -528,6 +530,8 @@ object CodeGenUtils {
         s"(($BINARY_RAW_VALUE) $rowTerm.getRawValue($indexTerm))"
       case VARIANT =>
         s"$rowTerm.getVariant($indexTerm)"
+      case OBJECT_REF =>
+        s"$rowTerm.getObjectRef($indexTerm)"
       case NULL | SYMBOL | UNRESOLVED =>
         throw new IllegalArgumentException("Illegal type: " + t)
     }

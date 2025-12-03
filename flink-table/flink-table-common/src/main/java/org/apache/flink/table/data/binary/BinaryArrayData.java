@@ -31,6 +31,7 @@ import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.table.types.logical.DistinctType;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.utils.LogicalTypeUtils;
+import org.apache.flink.types.objectref.ObjectRefData;
 import org.apache.flink.types.variant.Variant;
 
 import java.lang.reflect.Array;
@@ -257,6 +258,11 @@ public final class BinaryArrayData extends BinarySection implements ArrayData, T
         int fieldOffset = getElementOffset(pos, 8);
         final long offsetAndSize = BinarySegmentUtils.getLong(segments, fieldOffset);
         return BinarySegmentUtils.readVariant(segments, offset, offsetAndSize);
+    }
+
+    @Override
+    public ObjectRefData getObjectRef(int pos) {
+        return null;
     }
 
     @Override

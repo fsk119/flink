@@ -27,6 +27,7 @@ import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.types.RowKind;
+import org.apache.flink.types.objectref.ObjectRef;
 import org.apache.flink.types.variant.Variant;
 
 import java.util.List;
@@ -204,6 +205,16 @@ public class EnrichedRowData implements RowData {
             return mutableRow.getRawValue(index);
         } else {
             return fixedRow.getRawValue(-(index + 1));
+        }
+    }
+
+    @Override
+    public ObjectRef getObjectRef(int pos) {
+        int index = indexMapping[pos];
+        if (index >= 0) {
+            return mutableRow.getObjectRef(index);
+        } else {
+            return fixedRow.getObjectRef(-(index + 1));
         }
     }
 

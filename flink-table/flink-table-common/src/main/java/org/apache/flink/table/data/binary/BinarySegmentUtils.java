@@ -29,6 +29,8 @@ import org.apache.flink.table.data.RawValueData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
+import org.apache.flink.types.objectref.ObjectRef;
+import org.apache.flink.types.objectref.ObjectRefData;
 import org.apache.flink.types.variant.BinaryVariant;
 
 import java.io.IOException;
@@ -1091,6 +1093,15 @@ public final class BinarySegmentUtils {
         final int size = ((int) offsetAndSize);
         int offset = (int) (offsetAndSize >> 32);
         return new BinaryRawValueData<>(segments, offset + baseOffset, size, null);
+    }
+
+    public static ObjectRef readObjectRef(
+            MemorySegment[] segments, int baseOffset, long offsetAndSize) {
+        BinaryObjectRefData binaryObjectRefData = new BinaryObjectRefData();
+        final int size = ((int) offsetAndSize);
+        int offset = (int) (offsetAndSize >> 32);
+        binaryObjectRefData.pointTo(segments, size, offset);
+        return binaryObjectRefData;
     }
 
     /** Gets an instance of {@link MapData} from underlying {@link MemorySegment}. */

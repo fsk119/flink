@@ -26,6 +26,8 @@ import org.apache.flink.table.planner.plan.nodes.exec.stream.StreamExecMLPredict
 import org.apache.flink.table.planner.runtime.utils.StreamingTestBase;
 import org.apache.flink.types.ColumnList;
 import org.apache.flink.types.Row;
+import org.apache.flink.types.objectref.ByteArrayAccessor;
+import org.apache.flink.types.objectref.ObjectRefData;
 import org.apache.flink.util.CollectionUtil;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -57,6 +59,17 @@ public class MLPredictITCase extends StreamingTestBase {
                     Row.of(null, 11, "Hello world"),
                     Row.of(9L, 12, "Hello world!"));
 
+    private final List<Row> dataWithObjectRef =
+            Arrays.asList(
+                    Row.of(
+                            1L,
+                            new ObjectRefData(
+                                    "image/png", new ByteArrayAccessor(new byte[] {1, 2, 3}))),
+                    Row.of(
+                            2L,
+                            new ObjectRefData(
+                                    "image/png", new ByteArrayAccessor(new byte[] {4, 5, 6}))));
+
     private final Map<Row, List<Row>> id2features = new HashMap<>();
 
     {
@@ -77,6 +90,17 @@ public class MLPredictITCase extends StreamingTestBase {
         idLen2features.put(Row.of(11L, 11), Collections.singletonList(Row.of("x3", 3, "z1111")));
         idLen2features.put(Row.of(9L, 12), Collections.singletonList(Row.of("x8", 8, "z912")));
         idLen2features.put(Row.of(12L, 12), Collections.singletonList(Row.of("x8", 8, "z1212")));
+    }
+
+    private final Map<Row, List<Row>> object2description = new HashMap<>();
+
+    {
+        object2description.put(
+                Row.of(new ObjectRefData("image/png", new ByteArrayAccessor(new byte[] {1, 2, 3}))),
+                Collections.singletonList(Row.of("Dog")));
+        object2description.put(
+                Row.of(new ObjectRefData("image/png", new ByteArrayAccessor(new byte[] {4, 5, 6}))),
+                Collections.singletonList(Row.of("Fish")));
     }
 
     @BeforeEach
@@ -105,6 +129,17 @@ public class MLPredictITCase extends StreamingTestBase {
                                         + "  'data-id' = '%s'"
                                         + ")",
                                 TestValuesModelFactory.registerData(idLen2features)));
+
+        tEnv().executeSql(
+                        String.format(
+                                "CREATE MODEL m3\n"
+                                        + "INPUT (content object_ref)\n"
+                                        + "OUTPUT (resp string)\n"
+                                        + "WITH (\n"
+                                        + "  'provider' = 'values',"
+                                        + "  'data-id' = '%s'"
+                                        + ")",
+                                TestValuesModelFactory.registerData(object2description)));
     }
 
     @Test
@@ -174,6 +209,38 @@ public class MLPredictITCase extends StreamingTestBase {
                         Row.of(3L, 15, "Fabian", "x3", 3, "z3"),
                         Row.of(8L, 11, "Hello world", "x8", 8, "z8"),
                         Row.of(9L, 12, "Hello world!", "x9", 9, "z9"));
+    }
+
+    @Test
+    public void testPredictWithObjectRef() {
+        createScanObjectTable("objs", dataWithObjectRef);
+        List<Row> result =
+                CollectionUtil.iteratorToList(
+                        tEnv().executeSql(
+                                        "SELECT *"
+                                                + "FROM ML_PREDICT(TABLE objs, MODEL m3, DESCRIPTOR(r)) ")
+                                .collect());
+
+        assertThatList(result)
+                .containsExactlyInAnyOrder(
+                        Row.of(3L, 15, "z315"),
+                        Row.of(9L, 12, "z912"),
+                        Row.of(null, 11, "zNull11"),
+                        Row.of(null, 15, "zNull15"));
+    }
+
+    private void createScanObjectTable(String tableName, List<Row> data) {
+        String dataId = TestValuesTableFactory.registerData(data);
+        tEnv().executeSql(
+                        String.format(
+                                "CREATE TABLE `%s`(\n"
+                                        + "  id BIGINT,\n"
+                                        + "  r object_ref\n"
+                                        + ") WITH (\n"
+                                        + "  'connector' = 'values',\n"
+                                        + "  'data-id' = '%s'\n"
+                                        + ")",
+                                tableName, dataId));
     }
 
     private void createScanTable(String tableName, List<Row> data) {

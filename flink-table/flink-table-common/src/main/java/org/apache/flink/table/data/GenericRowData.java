@@ -22,6 +22,8 @@ import org.apache.flink.annotation.PublicEvolving;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.StructuredType;
 import org.apache.flink.types.RowKind;
+import org.apache.flink.types.objectref.ObjectRef;
+import org.apache.flink.types.objectref.ObjectRefData;
 import org.apache.flink.types.variant.Variant;
 import org.apache.flink.util.StringUtils;
 
@@ -184,6 +186,11 @@ public final class GenericRowData implements RowData {
     @Override
     public <T> RawValueData<T> getRawValue(int pos) {
         return (RawValueData<T>) this.fields[pos];
+    }
+
+    @Override
+    public ObjectRef getObjectRef(int pos) {
+        return (ObjectRef) this.fields[pos];
     }
 
     @Override

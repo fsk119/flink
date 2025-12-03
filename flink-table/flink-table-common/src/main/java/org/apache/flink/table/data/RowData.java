@@ -25,6 +25,8 @@ import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.StructuredType;
 import org.apache.flink.types.RowKind;
+import org.apache.flink.types.objectref.ObjectRef;
+import org.apache.flink.types.objectref.ObjectRefData;
 import org.apache.flink.types.variant.Variant;
 
 import javax.annotation.Nullable;
@@ -186,6 +188,8 @@ public interface RowData {
     /** Returns the raw value at the given position. */
     <T> RawValueData<T> getRawValue(int pos);
 
+    ObjectRef getObjectRef(int pos);
+
     /** Returns the binary value at the given position. */
     byte[] getBinary(int pos);
 
@@ -286,6 +290,9 @@ public interface RowData {
                 break;
             case VARIANT:
                 fieldGetter = row -> row.getVariant(fieldPos);
+                break;
+            case OBJECT_REF:
+                fieldGetter = row -> row.getObjectRef(fieldPos);
                 break;
             case NULL:
             case SYMBOL:

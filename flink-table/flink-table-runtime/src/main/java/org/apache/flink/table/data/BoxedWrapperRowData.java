@@ -27,6 +27,7 @@ import org.apache.flink.types.IntValue;
 import org.apache.flink.types.LongValue;
 import org.apache.flink.types.RowKind;
 import org.apache.flink.types.ShortValue;
+import org.apache.flink.types.objectref.ObjectRef;
 import org.apache.flink.types.variant.Variant;
 import org.apache.flink.util.StringUtils;
 
@@ -121,6 +122,11 @@ public class BoxedWrapperRowData implements RowData, TypedSetters {
     @Override
     public <T> RawValueData<T> getRawValue(int pos) {
         return (RawValueData<T>) this.fields[pos];
+    }
+
+    @Override
+    public ObjectRef getObjectRef(int pos) {
+        return (ObjectRef) this.fields[pos];
     }
 
     @Override

@@ -19,56 +19,45 @@
 package org.apache.flink.types.objectref;
 
 import org.apache.flink.api.common.typeutils.TypeSerializer;
-import org.apache.flink.api.common.typeutils.base.array.BytePrimitiveArraySerializer;
 import org.apache.flink.configuration.MemorySize;
+import org.apache.flink.core.fs.Path;
 
-import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
-import java.util.Arrays;
+import java.io.UncheckedIOException;
 
-public class ByteArrayAccessor implements ObjectAccessor {
+public class FileAccessor implements ObjectAccessor {
 
-    private final byte[] bytes;
+    private final Path path;
 
-    public ByteArrayAccessor(byte[] bytes) {
-        this.bytes = bytes;
+    public FileAccessor(Path path) {
+        this.path = path;
     }
 
     @Override
     public InputStream getInputStream() {
-        return new ByteArrayInputStream(bytes);
+        try {
+            return path.getFileSystem().open(path);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     @Override
     public MemorySize getSize() {
-        return new MemorySize(bytes.length);
+        try {
+            return new MemorySize(path.getFileSystem().getFileStatus(path).getLen());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    Path getPath() {
+        return path;
     }
 
     @Override
     public TypeSerializer<ObjectAccessor> getSerializer() {
-        return (TypeSerializer) ByteArrayAccessorSerializer.INSTANCE;
+        return (TypeSerializer) FileAccessorSerializer.INSTANCE;
     }
-
-    byte[] getBytesInternal() {
-        return bytes;
-    }
-
-    @Override
-    public boolean equals(Object object) {
-        if (this == object) {
-            return true;
-        }
-        if (!(object instanceof ByteArrayAccessor)) {
-            return false;
-        }
-        ByteArrayAccessor that = (ByteArrayAccessor) object;
-        return Arrays.equals(bytes, that.bytes);
-    }
-
-    @Override
-    public int hashCode() {
-        return Arrays.hashCode(bytes);
-    }
-
-
 }

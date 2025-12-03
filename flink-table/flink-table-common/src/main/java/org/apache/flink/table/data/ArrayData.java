@@ -22,6 +22,7 @@ import org.apache.flink.annotation.PublicEvolving;
 import org.apache.flink.table.types.logical.ArrayType;
 import org.apache.flink.table.types.logical.DistinctType;
 import org.apache.flink.table.types.logical.LogicalType;
+import org.apache.flink.types.objectref.ObjectRefData;
 import org.apache.flink.types.variant.Variant;
 
 import javax.annotation.Nullable;
@@ -99,6 +100,8 @@ public interface ArrayData {
 
     /** Returns the Variant value at the given position. */
     Variant getVariant(int i);
+
+    ObjectRefData getObjectRef(int pos);
 
     /** Returns the binary value at the given position. */
     byte[] getBinary(int pos);

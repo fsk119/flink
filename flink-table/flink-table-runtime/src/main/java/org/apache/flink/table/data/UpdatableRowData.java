@@ -20,6 +20,7 @@ package org.apache.flink.table.data;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.table.data.binary.TypedSetters;
 import org.apache.flink.types.RowKind;
+import org.apache.flink.types.objectref.ObjectRef;
 import org.apache.flink.types.variant.Variant;
 
 import java.util.BitSet;
@@ -124,6 +125,11 @@ public final class UpdatableRowData implements RowData, TypedSetters {
     @Override
     public <T> RawValueData<T> getRawValue(int pos) {
         return updated.get(pos) ? (RawValueData<T>) fields[pos] : row.getRawValue(pos);
+    }
+
+    @Override
+    public ObjectRef getObjectRef(int pos) {
+        return updated.get(pos) ? (ObjectRef) fields[pos] : row.getObjectRef(pos);
     }
 
     @Override

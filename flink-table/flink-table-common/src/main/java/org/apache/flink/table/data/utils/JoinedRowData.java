@@ -27,6 +27,8 @@ import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.types.RowKind;
+import org.apache.flink.types.objectref.ObjectRef;
+import org.apache.flink.types.objectref.ObjectRefData;
 import org.apache.flink.types.variant.Variant;
 
 import javax.annotation.Nullable;
@@ -211,6 +213,15 @@ public class JoinedRowData implements RowData {
             return row1.getRawValue(pos);
         } else {
             return row2.getRawValue(pos - row1.getArity());
+        }
+    }
+
+    @Override
+    public ObjectRef getObjectRef(int pos) {
+        if (pos < row1.getArity()) {
+            return row1.getObjectRef(pos);
+        } else {
+            return row2.getObjectRef(pos - row1.getArity());
         }
     }
 

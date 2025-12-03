@@ -18,19 +18,21 @@
 
 package org.apache.flink.types.objectref;
 
+import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.configuration.MemorySize;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.Serializable;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 
 public interface ObjectAccessor extends Serializable {
 
     InputStream getInputStream();
 
-    CompletableFuture<byte[]> getBytes();
-
     MemorySize getSize();
 
-    ObjectAccessor copy();
+    TypeSerializer<ObjectAccessor> getSerializer();
 }

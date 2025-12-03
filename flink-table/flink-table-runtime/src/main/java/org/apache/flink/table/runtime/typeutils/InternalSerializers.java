@@ -40,7 +40,7 @@ import org.apache.flink.table.types.logical.MapType;
 import org.apache.flink.table.types.logical.MultisetType;
 import org.apache.flink.table.types.logical.RawType;
 import org.apache.flink.table.types.logical.RowType;
-import org.apache.flink.api.common.typeutils.base.ObjectRefSerializer;
+import org.apache.flink.api.common.typeutils.base.ObjectRefDataSerializer;
 
 import static org.apache.flink.table.types.logical.utils.LogicalTypeChecks.getPrecision;
 import static org.apache.flink.table.types.logical.utils.LogicalTypeChecks.getScale;
@@ -128,7 +128,7 @@ public final class InternalSerializers {
             case VARIANT:
                 return VariantSerializer.INSTANCE;
             case OBJECT_REF:
-                return ObjectRefSerializer.INSTANCE;
+                return ObjectRefDataSerializer.INSTANCE;
             case NULL:
             case SYMBOL:
             case UNRESOLVED:

@@ -27,6 +27,8 @@ import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.types.RowKind;
+import org.apache.flink.types.objectref.ObjectRef;
+import org.apache.flink.types.objectref.ObjectRefData;
 import org.apache.flink.types.variant.Variant;
 
 import static org.apache.flink.table.data.binary.BinaryRowData.calculateBitSetWidthInBytes;
@@ -283,6 +285,12 @@ public final class NestedRowData extends BinarySection implements RowData, Typed
     public <T> RawValueData<T> getRawValue(int pos) {
         assertIndexIsValid(pos);
         return BinarySegmentUtils.readRawValueData(segments, offset, getLong(pos));
+    }
+
+    @Override
+    public ObjectRef getObjectRef(int pos) {
+        assertIndexIsValid(pos);
+        return BinarySegmentUtils.readObjectRef(segments, offset, getLong(pos));
     }
 
     @Override

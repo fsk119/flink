@@ -38,7 +38,7 @@ import org.apache.flink.streaming.api.operators.StreamSource;
 import org.apache.flink.streaming.util.AbstractStreamOperatorTestHarness;
 import org.apache.flink.types.Value;
 import org.apache.flink.types.objectref.ByteArrayAccessor;
-import org.apache.flink.types.objectref.ObjectRef;
+import org.apache.flink.types.objectref.ObjectRefData;
 import org.apache.flink.util.InstantiationUtil;
 
 import org.junit.jupiter.api.Test;
@@ -81,16 +81,17 @@ class FromElementsFunctionTest {
 
     @Test
     void testObjectRef() throws Exception {
-        ObjectRef[] references = {
-            new ObjectRef("application/octet-stream", new ByteArrayAccessor(new byte[] {1, 2, 3})),
-            new ObjectRef("application/octet-stream", new ByteArrayAccessor(new byte[] {4, 5})),
+        ObjectRefData[] references = {
+            new ObjectRefData(
+                    "application/octet-stream", new ByteArrayAccessor(new byte[] {1, 2, 3})),
+            new ObjectRefData("application/octet-stream", new ByteArrayAccessor(new byte[] {4, 5})),
         };
 
-        FromElementsFunction<ObjectRef> source =
+        FromElementsFunction<ObjectRefData> source =
                 new FromElementsFunction<>(
                         Types.OBJECT_REF.createSerializer(new SerializerConfigImpl()), references);
 
-        List<ObjectRef> result = new ArrayList<>();
+        List<ObjectRefData> result = new ArrayList<>();
         source.run(new ListSourceContext<>(result));
 
         assertThat(result).containsExactly(references);

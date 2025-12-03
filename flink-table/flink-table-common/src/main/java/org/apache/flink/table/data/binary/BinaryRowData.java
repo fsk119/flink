@@ -33,6 +33,8 @@ import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.LogicalTypeRoot;
 import org.apache.flink.table.types.logical.TimestampType;
 import org.apache.flink.types.RowKind;
+import org.apache.flink.types.objectref.ObjectRef;
+import org.apache.flink.types.objectref.ObjectRefData;
 import org.apache.flink.types.variant.BinaryVariant;
 
 import java.nio.ByteOrder;
@@ -361,6 +363,13 @@ public final class BinaryRowData extends BinarySection
     public <T> RawValueData<T> getRawValue(int pos) {
         assertIndexIsValid(pos);
         return BinarySegmentUtils.readRawValueData(segments, offset, getLong(pos));
+    }
+
+    @Override
+    public ObjectRef getObjectRef(int pos) {
+        assertIndexIsValid(pos);
+
+        return BinarySegmentUtils.readObjectRef(segments, offset, getLong(pos));
     }
 
     @Override

@@ -29,6 +29,8 @@ import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.table.types.DataType;
 import org.apache.flink.types.RowKind;
+import org.apache.flink.types.objectref.ObjectRef;
+import org.apache.flink.types.objectref.ObjectRefData;
 import org.apache.flink.types.variant.Variant;
 
 import java.util.Arrays;
@@ -145,6 +147,11 @@ public class ProjectedRowData implements RowData {
     @Override
     public <T> RawValueData<T> getRawValue(int pos) {
         return row.getRawValue(indexMapping[pos]);
+    }
+
+    @Override
+    public ObjectRef getObjectRef(int pos) {
+        return row.getObjectRef(indexMapping[pos]);
     }
 
     @Override

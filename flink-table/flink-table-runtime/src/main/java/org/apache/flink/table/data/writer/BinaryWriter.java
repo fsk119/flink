@@ -36,6 +36,7 @@ import org.apache.flink.table.types.logical.DistinctType;
 import org.apache.flink.table.types.logical.LocalZonedTimestampType;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.TimestampType;
+import org.apache.flink.types.objectref.ObjectRef;
 import org.apache.flink.types.variant.Variant;
 
 import java.io.Serializable;
@@ -87,6 +88,8 @@ public interface BinaryWriter {
     void writeRawValue(int pos, RawValueData<?> value, RawValueDataSerializer<?> serializer);
 
     void writeVariant(int pos, Variant variant);
+
+    void writeObjectRef(int pos, ObjectRef ref);
 
     /** Finally, complete write to set real size to binary. */
     void complete();
@@ -160,6 +163,9 @@ public interface BinaryWriter {
             case RAW:
                 writer.writeRawValue(
                         pos, (RawValueData<?>) o, (RawValueDataSerializer<?>) serializer);
+                break;
+            case OBJECT_REF:
+                writer.writeObjectRef(pos, (ObjectRef) o);
                 break;
             case BINARY:
             case VARBINARY:

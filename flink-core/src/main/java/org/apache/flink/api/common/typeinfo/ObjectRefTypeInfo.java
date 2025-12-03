@@ -20,12 +20,24 @@ package org.apache.flink.api.common.typeinfo;
 
 import org.apache.flink.api.common.serialization.SerializerConfig;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
-import org.apache.flink.api.common.typeutils.base.ObjectRefSerializer;
-import org.apache.flink.types.objectref.ObjectRef;
+import org.apache.flink.api.common.typeutils.base.ObjectRefDataSerializer;
+import org.apache.flink.types.objectref.ObjectAccessor;
+import org.apache.flink.types.objectref.ObjectRefData;
 
-public class ObjectRefTypeInfo extends TypeInformation<ObjectRef> {
+import javax.annotation.Nullable;
+
+public class ObjectRefTypeInfo extends TypeInformation<ObjectRefData> {
 
     public static final ObjectRefTypeInfo INSTANCE = new ObjectRefTypeInfo();
+    private @Nullable final TypeSerializer<ObjectAccessor> accessorSerializer;
+
+    public ObjectRefTypeInfo() {
+        this(null);
+    }
+
+    public ObjectRefTypeInfo(TypeSerializer<ObjectAccessor> accessorSerializer) {
+        this.accessorSerializer = accessorSerializer;
+    }
 
     @Override
     public boolean isBasicType() {
@@ -48,8 +60,8 @@ public class ObjectRefTypeInfo extends TypeInformation<ObjectRef> {
     }
 
     @Override
-    public Class<ObjectRef> getTypeClass() {
-        return ObjectRef.class;
+    public Class<ObjectRefData> getTypeClass() {
+        return ObjectRefData.class;
     }
 
     @Override
@@ -58,13 +70,13 @@ public class ObjectRefTypeInfo extends TypeInformation<ObjectRef> {
     }
 
     @Override
-    public TypeSerializer<ObjectRef> createSerializer(SerializerConfig config) {
-        return new ObjectRefSerializer();
+    public TypeSerializer<ObjectRefData> createSerializer(SerializerConfig config) {
+        return new ObjectRefDataSerializer();
     }
 
     @Override
     public String toString() {
-        return ObjectRef.class.getSimpleName();
+        return ObjectRefData.class.getSimpleName();
     }
 
     @Override

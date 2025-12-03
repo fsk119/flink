@@ -19,6 +19,7 @@ package org.apache.flink.table.data.writer;
 
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
+import org.apache.flink.core.memory.DataOutputView;
 import org.apache.flink.core.memory.DataOutputViewStreamWrapper;
 import org.apache.flink.core.memory.MemorySegment;
 import org.apache.flink.core.memory.MemorySegmentFactory;
@@ -32,6 +33,7 @@ import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.table.data.binary.BinaryArrayData;
 import org.apache.flink.table.data.binary.BinaryFormat;
 import org.apache.flink.table.data.binary.BinaryMapData;
+import org.apache.flink.table.data.binary.BinaryObjectRefData;
 import org.apache.flink.table.data.binary.BinaryRawValueData;
 import org.apache.flink.table.data.binary.BinaryRowData;
 import org.apache.flink.table.data.binary.BinarySegmentUtils;
@@ -40,9 +42,15 @@ import org.apache.flink.table.runtime.typeutils.ArrayDataSerializer;
 import org.apache.flink.table.runtime.typeutils.MapDataSerializer;
 import org.apache.flink.table.runtime.typeutils.RawValueDataSerializer;
 import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
+import org.apache.flink.types.objectref.ByteArrayAccessor;
+import org.apache.flink.types.objectref.FileAccessor;
+import org.apache.flink.types.objectref.ObjectAccessor;
+import org.apache.flink.types.objectref.ObjectRef;
+import org.apache.flink.types.objectref.ObjectRefData;
 import org.apache.flink.types.variant.BinaryVariant;
 import org.apache.flink.types.variant.Variant;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
@@ -154,6 +162,47 @@ abstract class AbstractBinaryWriter implements BinaryWriter {
     }
 
     @Override
+    public void writeObjectRef(int pos, ObjectRef ref) {
+        BinaryObjectRefData binaryObjectRefData;
+        if (ref instanceof ObjectRefData) {
+            byte[] binaryString = StringData.fromString(ref.getContentType()).toBytes();
+            // add assert here
+            int len = binaryString.length;
+            ObjectAccessor accessor = ref.getAccessor();
+            int type;
+            if (accessor instanceof ByteArrayAccessor) {
+                type = 0;
+            } else if (accessor instanceof FileAccessor) {
+                type = 1;
+            } else {
+                type = 2;
+            }
+
+            int lenAndType = (len << 8) | type;
+            try (ByteArrayOutputStream out = new ByteArrayOutputStream(lenAndType + 1)) {
+                DataOutputView view = new DataOutputViewStreamWrapper(out);
+                out.write(lenAndType);
+                out.write(binaryString);
+                if (type == 2) {
+                    ref.getAccessor().getSerializer().snapshotConfiguration().writeSnapshot(view);
+                }
+                ref.getAccessor().getSerializer().serialize(ref.getAccessor(), view);
+                byte[] bytes = out.toByteArray();
+                writeBytesToVarLenPart(pos, bytes, bytes.length);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        } else if (ref instanceof BinaryObjectRefData) {
+            binaryObjectRefData = (BinaryObjectRefData) ref;
+            writeSegmentsToVarLenPart(
+                    pos,
+                    binaryObjectRefData.getSegments(),
+                    binaryObjectRefData.getOffset(),
+                    binaryObjectRefData.getSizeInBytes());
+        }
+    }
+
+    @Override
     public void writeRow(int pos, RowData input, RowDataSerializer serializer) {
         if (input instanceof BinaryFormat) {
             BinaryFormat row = (BinaryFormat) input;
@@ -232,6 +281,7 @@ abstract class AbstractBinaryWriter implements BinaryWriter {
             cursor += 8;
         }
     }
+
 
     private void zeroBytes(int offset, int size) {
         for (int i = offset; i < offset + size; i++) {

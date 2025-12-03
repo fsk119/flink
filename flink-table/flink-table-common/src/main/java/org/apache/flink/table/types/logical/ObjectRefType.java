@@ -18,7 +18,9 @@
 
 package org.apache.flink.table.types.logical;
 
+import org.apache.flink.table.data.binary.BinaryObjectRefData;
 import org.apache.flink.types.objectref.ObjectRef;
+import org.apache.flink.types.objectref.ObjectRefData;
 
 import java.util.Collections;
 import java.util.List;
@@ -27,7 +29,10 @@ import java.util.Set;
 public class ObjectRefType extends LogicalType {
 
     private static final Set<String> INPUT_OUTPUT_CONVERSION =
-            conversionSet(ObjectRef.class.getName());
+            conversionSet(
+                    ObjectRefData.class.getName(),
+                    BinaryObjectRefData.class.getName(),
+                    ObjectRef.class.getName());
 
     public ObjectRefType() {
         this(true);
@@ -59,7 +64,7 @@ public class ObjectRefType extends LogicalType {
 
     @Override
     public Class<?> getDefaultConversion() {
-        return ObjectRef.class;
+        return ObjectRefData.class;
     }
 
     @Override

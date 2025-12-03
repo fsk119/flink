@@ -18,54 +18,20 @@
 
 package org.apache.flink.types.objectref;
 
+import org.apache.flink.annotation.PublicEvolving;
+
 import java.io.Serializable;
-import java.util.Objects;
 
-public class ObjectRef implements Serializable {
-
-    private static final long serialVersionUID = 1L;
-
-    private final ObjectAccessor accessor;
-    private final String contentType;
-
-    public static ObjectRef createEmptyInstance() {
-        return new ObjectRef("application/octet-stream", new ByteArrayAccessor(new byte[0]));
-    }
-
-    public ObjectRef(String contentType, ObjectAccessor accessor) {
-        this.accessor = accessor;
-        this.contentType = contentType;
-    }
+@PublicEvolving
+public interface ObjectRef extends Serializable {
 
     /** Accessor to get the object */
-    public ObjectAccessor getAccessor() {
-        return accessor;
-    }
+    ObjectAccessor getAccessor();
 
     /**
      * Describe the object type. It describes media types.
      *
      * <p>https://www.iana.org/assignments/media-types/media-types.xhtml
      */
-    public String getContentType() {
-        return contentType;
-    }
-
-    @Override
-    public boolean equals(Object object) {
-        if (this == object) {
-            return true;
-        }
-        if (!(object instanceof ObjectRef)) {
-            return false;
-        }
-        ObjectRef objectRef = (ObjectRef) object;
-        return Objects.equals(accessor, objectRef.accessor)
-                && Objects.equals(contentType, objectRef.contentType);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(accessor, contentType);
-    }
+    String getContentType();
 }

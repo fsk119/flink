@@ -45,6 +45,7 @@ import org.apache.flink.table.types.logical.LogicalTypeVisitor;
 import org.apache.flink.table.types.logical.MapType;
 import org.apache.flink.table.types.logical.MultisetType;
 import org.apache.flink.table.types.logical.NullType;
+import org.apache.flink.table.types.logical.ObjectRefType;
 import org.apache.flink.table.types.logical.RawType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.RowType.RowField;
@@ -447,6 +448,11 @@ public final class LogicalRelDataTypeConverter {
         @Override
         public RelDataType visit(RawType<?> rawType) {
             return new RawRelDataType(rawType);
+        }
+
+        @Override
+        public RelDataType visit(ObjectRefType objectRefType) {
+            throw new UnsupportedOperationException();
         }
 
         @Override

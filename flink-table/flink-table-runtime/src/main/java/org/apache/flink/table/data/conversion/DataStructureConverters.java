@@ -235,6 +235,8 @@ public final class DataStructureConverters {
                 return StructuredObjectConverter.create(dataType);
             case RAW:
                 return RawObjectConverter.create(dataType);
+            case OBJECT_REF:
+                return identity().createConverter(dataType);
             default:
                 throw new TableException("Could not find converter for data type: " + dataType);
         }
