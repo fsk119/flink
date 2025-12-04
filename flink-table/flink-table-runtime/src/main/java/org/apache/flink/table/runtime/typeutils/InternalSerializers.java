@@ -128,7 +128,7 @@ public final class InternalSerializers {
             case VARIANT:
                 return VariantSerializer.INSTANCE;
             case OBJECT_REF:
-                return ObjectRefDataSerializer.INSTANCE;
+                return ObjectRefSerializer.INSTANCE;
             case NULL:
             case SYMBOL:
             case UNRESOLVED:

@@ -18,30 +18,24 @@
 
 package org.apache.flink.table.runtime.typeutils;
 
-import org.apache.flink.api.common.typeutils.TypeSerializer;
+import org.apache.flink.annotation.Internal;
+import org.apache.flink.api.common.typeutils.SimpleTypeSerializerSnapshot;
 import org.apache.flink.api.common.typeutils.TypeSerializerSnapshot;
 import org.apache.flink.api.common.typeutils.base.TypeSerializerSingleton;
 import org.apache.flink.core.memory.DataInputView;
 import org.apache.flink.core.memory.DataOutputView;
-import org.apache.flink.core.memory.DataOutputViewStreamWrapper;
 import org.apache.flink.core.memory.MemorySegment;
 import org.apache.flink.core.memory.MemorySegmentFactory;
-import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.binary.BinaryObjectRefData;
 import org.apache.flink.table.data.binary.BinarySegmentUtils;
-import org.apache.flink.table.data.binary.BinaryStringData;
-import org.apache.flink.types.objectref.ByteArrayAccessor;
-import org.apache.flink.types.objectref.FileAccessor;
-import org.apache.flink.types.objectref.ObjectAccessor;
 import org.apache.flink.types.objectref.ObjectRef;
 import org.apache.flink.types.objectref.ObjectRefData;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
-public class ObjectRefDataSerializer extends TypeSerializerSingleton<ObjectRef> {
+public class ObjectRefSerializer extends TypeSerializerSingleton<ObjectRef> {
 
-    private static final ObjectRefDataSerializer INSTANCE = new ObjectRefDataSerializer();
+    public static final ObjectRefSerializer INSTANCE = new ObjectRefSerializer();
 
     @Override
     public boolean isImmutableType() {
@@ -55,23 +49,27 @@ public class ObjectRefDataSerializer extends TypeSerializerSingleton<ObjectRef> 
 
     @Override
     public ObjectRef copy(ObjectRef from) {
+        BinaryObjectRefData binaryObjectRefData;
         if (from instanceof ObjectRefData) {
-            return org.apache.flink.api.common.typeutils.base.ObjectRefDataSerializer.INSTANCE.copy(
-                    (ObjectRefData) from);
+            binaryObjectRefData = new BinaryObjectRefData((ObjectRefData) from);
         } else if (from instanceof BinaryObjectRefData) {
-            BinaryObjectRefData binaryObjectRefData = (BinaryObjectRefData) from;
-            byte[] copy =
-                    BinarySegmentUtils.copyToBytes(
-                            binaryObjectRefData.getSegments(),
-                            binaryObjectRefData.getOffset(),
-                            binaryObjectRefData.getSizeInBytes());
-            BinaryObjectRefData copied = new BinaryObjectRefData();
-            copied.pointTo(
-                    MemorySegmentFactory.wrap(copy), 0, binaryObjectRefData.getSizeInBytes());
-            return copied;
+            binaryObjectRefData = (BinaryObjectRefData) from;
         } else {
             throw new UnsupportedOperationException();
         }
+
+        binaryObjectRefData.ensureMaterialized(null);
+        byte[] copy =
+                BinarySegmentUtils.copyToBytes(
+                        binaryObjectRefData.getSegments(),
+                        binaryObjectRefData.getOffset(),
+                        binaryObjectRefData.getSizeInBytes());
+        BinaryObjectRefData copied =
+                new BinaryObjectRefData(
+                        new MemorySegment[] {MemorySegmentFactory.wrap(copy)},
+                        0,
+                        binaryObjectRefData.getSizeInBytes());
+        return copied;
     }
 
     @Override
@@ -86,42 +84,56 @@ public class ObjectRefDataSerializer extends TypeSerializerSingleton<ObjectRef> 
 
     @Override
     public void serialize(ObjectRef record, DataOutputView target) throws IOException {
+        BinaryObjectRefData binaryObjectRefData;
         if (record instanceof ObjectRefData) {
-            byte[] binaryString = StringData.fromString(record.getContentType()).toBytes();
-            // add assert here
-            int len = binaryString.length;
-            ObjectAccessor accessor = record.getAccessor();
-            int type;
-            if (accessor instanceof ByteArrayAccessor) {
-                type = 0;
-            } else if (accessor instanceof FileAccessor) {
-                type = 1;
-            } else {
-                type = 2;
-            }
-
-            int lenAndType = (len << 8) | type;
-
-            MemorySegment memorySegment = MemorySegmentFactory.wrapInt(lenAndType);
-            memorySegment.putInt(0, lenAndType);
+            binaryObjectRefData = new BinaryObjectRefData((ObjectRefData) record);
+        } else if (record instanceof BinaryObjectRefData) {
+            binaryObjectRefData = (BinaryObjectRefData) record;
+        } else {
+            throw new UnsupportedOperationException();
         }
+
+        binaryObjectRefData.ensureMaterialized(null);
+        target.writeInt(binaryObjectRefData.getSizeInBytes());
+        BinarySegmentUtils.copyToView(
+                binaryObjectRefData.getSegments(),
+                binaryObjectRefData.getOffset(),
+                binaryObjectRefData.getSizeInBytes(),
+                target);
     }
 
     @Override
     public ObjectRef deserialize(DataInputView source) throws IOException {
-        return null;
+        int length = source.readInt();
+        byte[] bytes = new byte[length];
+        source.readFully(bytes);
+        return new BinaryObjectRefData(
+                new MemorySegment[] {MemorySegmentFactory.wrap(bytes)}, 0, bytes.length);
     }
 
     @Override
     public ObjectRef deserialize(ObjectRef reuse, DataInputView source) throws IOException {
-        return null;
+        return deserialize(source);
     }
 
     @Override
-    public void copy(DataInputView source, DataOutputView target) throws IOException {}
+    public void copy(DataInputView source, DataOutputView target) throws IOException {
+        int length = source.readInt();
+        target.writeInt(length);
+        target.write(source, length);
+    }
 
     @Override
     public TypeSerializerSnapshot<ObjectRef> snapshotConfiguration() {
-        return null;
+        return new ObjectRefSerializerSnapshot();
+    }
+
+    @Internal
+    public static final class ObjectRefSerializerSnapshot
+            extends SimpleTypeSerializerSnapshot<ObjectRef> {
+
+        public ObjectRefSerializerSnapshot() {
+            super(() -> INSTANCE);
+        }
     }
 }

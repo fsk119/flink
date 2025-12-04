@@ -152,10 +152,10 @@ public class OpenAIChatModelTest {
                                 + "  'endpoint' = '%s',"
                                 + "  'api-key' = '%s',"
                                 + "  'model' = '%s',"
-                                + " 'system-prompt' = '%s'"
+                                + "  'system-prompt' = '%s'"
                                 + ")",
                         "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
-                        // here is secret
+                        System.getenv("BAILIAN_APIKEY"),
                         "qwen3-vl-plus",
                         "分析图片里有什么"));
         tEnv.executeSql("SELECT id, resp FROM ML_PREDICT(TABLE src, MODEL m3, DESCRIPTOR(`image`))")

@@ -1097,11 +1097,9 @@ public final class BinarySegmentUtils {
 
     public static ObjectRef readObjectRef(
             MemorySegment[] segments, int baseOffset, long offsetAndSize) {
-        BinaryObjectRefData binaryObjectRefData = new BinaryObjectRefData();
         final int size = ((int) offsetAndSize);
         int offset = (int) (offsetAndSize >> 32);
-        binaryObjectRefData.pointTo(segments, baseOffset + offset, size);
-        return binaryObjectRefData;
+        return new BinaryObjectRefData(segments, baseOffset + offset, size);
     }
 
     /** Gets an instance of {@link MapData} from underlying {@link MemorySegment}. */

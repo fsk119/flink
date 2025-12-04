@@ -165,47 +165,19 @@ abstract class AbstractBinaryWriter implements BinaryWriter {
     public void writeObjectRef(int pos, ObjectRef ref) {
         BinaryObjectRefData binaryObjectRefData;
         if (ref instanceof ObjectRefData) {
-            byte[] binaryString = StringData.fromString(ref.getContentType()).toBytes();
-            // add assert here
-            int len = binaryString.length;
-            ObjectAccessor accessor = ref.getAccessor();
-            int type;
-            if (accessor instanceof ByteArrayAccessor) {
-                type = 0;
-            } else if (accessor instanceof FileAccessor) {
-                type = 1;
-            } else {
-                type = 2;
-            }
-
-            int lenAndType = (len << 8) | type;
-            MemorySegment memorySegment = MemorySegmentFactory.wrapInt(lenAndType);
-            memorySegment.putInt(0, lenAndType);
-
-            try (ByteArrayOutputStream out = new ByteArrayOutputStream(lenAndType + 1)) {
-                DataOutputView view = new DataOutputViewStreamWrapper(out);
-                view.write(binaryString);
-                if (type == 2) {
-                    ref.getAccessor().getSerializer().snapshotConfiguration().writeSnapshot(view);
-                }
-                ref.getAccessor().getSerializer().serialize(ref.getAccessor(), view);
-                byte[] bytes = out.toByteArray();
-                writeSegmentsToVarLenPart(
-                        pos,
-                        new MemorySegment[] {memorySegment, MemorySegmentFactory.wrap(bytes)},
-                        0,
-                        bytes.length + 4);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
+            binaryObjectRefData = new BinaryObjectRefData((ObjectRefData) ref);
         } else if (ref instanceof BinaryObjectRefData) {
             binaryObjectRefData = (BinaryObjectRefData) ref;
-            writeSegmentsToVarLenPart(
-                    pos,
-                    binaryObjectRefData.getSegments(),
-                    binaryObjectRefData.getOffset(),
-                    binaryObjectRefData.getSizeInBytes());
+        } else {
+            throw new UnsupportedOperationException();
         }
+
+        binaryObjectRefData.ensureMaterialized(null);
+        writeSegmentsToVarLenPart(
+                pos,
+                binaryObjectRefData.getSegments(),
+                binaryObjectRefData.getOffset(),
+                binaryObjectRefData.getSizeInBytes());
     }
 
     @Override

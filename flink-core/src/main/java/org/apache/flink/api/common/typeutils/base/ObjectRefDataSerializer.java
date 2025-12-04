@@ -22,6 +22,7 @@ import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.typeutils.SimpleTypeSerializerSnapshot;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.common.typeutils.TypeSerializerSnapshot;
+import org.apache.flink.api.common.typeutils.TypeSerializerSnapshotSerializationUtil;
 import org.apache.flink.core.memory.DataInputView;
 import org.apache.flink.core.memory.DataOutputView;
 import org.apache.flink.core.memory.DataOutputViewStreamWrapper;
@@ -116,7 +117,7 @@ public class ObjectRefDataSerializer extends TypeSerializerSingleton<ObjectRefDa
             source.skipBytesToRead(4);
             accessor =
                     (ObjectAccessor)
-                            TypeSerializerSnapshot.readVersionedSnapshot(
+                            TypeSerializerSnapshotSerializationUtil.readSerializerSnapshot(
                                             source, Thread.currentThread().getContextClassLoader())
                                     .restoreSerializer()
                                     .deserialize(source);
