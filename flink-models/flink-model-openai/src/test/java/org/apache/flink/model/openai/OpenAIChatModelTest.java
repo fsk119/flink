@@ -18,6 +18,7 @@
 package org.apache.flink.model.openai;
 
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.core.fs.Path;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.Schema;
 import org.apache.flink.table.api.TableEnvironment;
@@ -26,7 +27,11 @@ import org.apache.flink.table.api.internal.TableEnvironmentImpl;
 import org.apache.flink.table.catalog.CatalogManager;
 import org.apache.flink.table.catalog.CatalogModel;
 import org.apache.flink.table.catalog.ObjectIdentifier;
+import org.apache.flink.table.planner.factories.TestValuesModelFactory;
+import org.apache.flink.table.planner.factories.TestValuesTableFactory;
 import org.apache.flink.types.Row;
+import org.apache.flink.types.objectref.FileAccessor;
+import org.apache.flink.types.objectref.ObjectRefData;
 import org.apache.flink.types.variant.Variant;
 
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.JsonNode;
@@ -45,6 +50,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -117,6 +123,43 @@ public class OpenAIChatModelTest {
                     .isEqualTo(
                             "This is a mocked response continuation continuation continuation continuation continuation continuation continuation continuation continuation continuation");
         }
+    }
+
+    @Test
+    void testImage() {
+        final List<Row> dataWithObjectRef =
+                Arrays.asList(
+                        Row.of(
+                                1L,
+                                new ObjectRefData(
+                                        "image/png",
+                                        new FileAccessor(
+                                                new Path("/Users/ohmeatball/Desktop/image.png")))));
+        tEnv.executeSql(
+                String.format(
+                        "create table src(id BIGINT, image OBJECT_REF) with ("
+                                + "  'connector' = 'values',"
+                                + " 'data-id' = '%s' "
+                                + ")",
+                        TestValuesTableFactory.registerData(dataWithObjectRef)));
+        tEnv.executeSql(
+                String.format(
+                        "CREATE MODEL m3\n"
+                                + "INPUT (content object_ref)\n"
+                                + "OUTPUT (resp string)\n"
+                                + "WITH (\n"
+                                + "  'provider' = 'openai',"
+                                + "  'endpoint' = '%s',"
+                                + "  'api-key' = '%s',"
+                                + "  'model' = '%s',"
+                                + " 'system-prompt' = '%s'"
+                                + ")",
+                        "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
+                        // here is secret
+                        "qwen3-vl-plus",
+                        "分析图片里有什么"));
+        tEnv.executeSql("SELECT id, resp FROM ML_PREDICT(TABLE src, MODEL m3, DESCRIPTOR(`image`))")
+                .print();
     }
 
     @Test

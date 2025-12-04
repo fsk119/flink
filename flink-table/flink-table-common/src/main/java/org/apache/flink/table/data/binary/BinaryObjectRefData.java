@@ -18,31 +18,23 @@
 
 package org.apache.flink.table.data.binary;
 
-import org.apache.flink.api.common.typeutils.TypeSerializer;
-import org.apache.flink.api.common.typeutils.TypeSerializerSnapshot;
+import org.apache.flink.api.common.typeutils.TypeSerializer;;
 import org.apache.flink.api.common.typeutils.TypeSerializerSnapshotSerializationUtil;
-import org.apache.flink.core.memory.DataInputView;
 import org.apache.flink.core.memory.DataInputViewStreamWrapper;
 import org.apache.flink.core.memory.MemorySegment;
-import org.apache.flink.core.memory.MemorySegmentInputStreamWithPos;
-import org.apache.flink.runtime.io.disk.RandomAccessInputView;
 import org.apache.flink.table.data.RawValueData;
-import org.apache.flink.table.data.StringData;
 import org.apache.flink.types.objectref.ByteArrayAccessorSerializer;
 import org.apache.flink.types.objectref.FileAccessorSerializer;
 import org.apache.flink.types.objectref.ObjectAccessor;
 import org.apache.flink.types.objectref.ObjectRef;
-import org.apache.flink.types.objectref.ObjectRefData;
 
 import java.io.ByteArrayInputStream;
-import java.nio.ByteBuffer;
-import java.util.Arrays;
 
 // It depends on the accessor type:
 // * type = 0, it means byte array. | metadata(3 byte len + 1 byte type) | content | bytearray |
 // * type = 1, it means string.     | metadata(3 byte len + 1 byte type) | content | file address |
-// * type = 2, it means user-defined accessor.     | metadata(3 byte len + 1 byte type) | content |
-// snapshot len | snapshot | data |
+// * type = 2, it means user-defined accessor.
+// | metadata(3 byte len + 1 byte type) | content | snapshot len | snapshot | data |
 public class BinaryObjectRefData extends BinarySection implements ObjectRef {
 
     private BinaryStringData content;
@@ -53,28 +45,30 @@ public class BinaryObjectRefData extends BinarySection implements ObjectRef {
     public void pointTo(MemorySegment[] segments, int offset, int sizeInBytes) {
         super.pointTo(segments, offset, sizeInBytes);
         int lenAndType = BinarySegmentUtils.getInt(segments, offset);
-        byte serializerType = (byte) lenAndType;
+        int serializerType = lenAndType & 0xFF;
         content = BinaryStringData.fromAddress(segments, offset + 4, (lenAndType >>> 8));
         if (serializerType == 0) {
             serializer = ByteArrayAccessorSerializer.INSTANCE;
             accessor =
                     new BinaryRawValueData<>(
                             segments,
-                            offset + 4 + content.getOffset(),
+                            content.getOffset() + content.getSizeInBytes(),
                             sizeInBytes - 4 - content.getSizeInBytes());
         } else if (serializerType == 1) {
             serializer = FileAccessorSerializer.INSTANCE;
             accessor =
                     new BinaryRawValueData<>(
                             segments,
-                            offset + 4 + content.getOffset(),
+                            content.getOffset() + content.getSizeInBytes(),
                             sizeInBytes - 4 - content.getSizeInBytes());
         } else if (serializerType == 2) {
             int snapshotLen = BinarySegmentUtils.getInt(segments, offset + 4 + content.getOffset());
             ByteArrayInputStream inputStream =
                     new ByteArrayInputStream(
                             BinarySegmentUtils.copyToBytes(
-                                    segments, offset + 4 + content.getSizeInBytes(), snapshotLen));
+                                    segments,
+                                    content.getOffset() + content.getSizeInBytes(),
+                                    snapshotLen));
             try {
                 serializer =
                         (TypeSerializer)

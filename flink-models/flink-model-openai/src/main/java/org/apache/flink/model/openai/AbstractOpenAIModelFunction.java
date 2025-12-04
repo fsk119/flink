@@ -36,8 +36,11 @@ import org.apache.flink.table.functions.AsyncPredictFunction;
 import org.apache.flink.table.functions.FunctionContext;
 import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.types.logical.LogicalType;
+import org.apache.flink.table.types.logical.ObjectRefType;
 import org.apache.flink.table.types.logical.VarCharType;
+import org.apache.flink.types.objectref.ObjectRef;
 import org.apache.flink.util.ExceptionUtils;
+import org.apache.flink.util.IOUtils;
 import org.apache.flink.util.Preconditions;
 
 import com.openai.client.OpenAIClientAsync;
@@ -48,12 +51,19 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.PrintStream;
+import java.nio.file.Files;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -94,8 +104,8 @@ public abstract class AbstractOpenAIModelFunction extends AsyncPredictFunction {
 
         validateSingleColumnSchema(
                 factoryContext.getCatalogModel().getResolvedInputSchema(),
-                new VarCharType(VarCharType.MAX_LENGTH),
-                "input");
+                "input",
+                Set.of(new VarCharType(VarCharType.MAX_LENGTH), new ObjectRefType()));
 
         this.outputColumnNames =
                 factoryContext.getCatalogModel().getResolvedOutputSchema().getColumnNames();
@@ -115,15 +125,16 @@ public abstract class AbstractOpenAIModelFunction extends AsyncPredictFunction {
             LOG.warn("Input is null, skipping prediction.");
             return CompletableFuture.completedFuture(Collections.emptyList());
         }
+        ObjectRef objectRef = rowData.getObjectRef(0);
 
-        String input =
-                contextOverflowAction.processTokensWithLimit(
-                        model, rowData.getString(0).toString(), maxContextSize);
-        if (input == null) {
-            return CompletableFuture.completedFuture(Collections.emptyList());
-        }
+        //        String input =
+        //                contextOverflowAction.processTokensWithLimit(
+        //                        model, rowData.getString(0).toString(), maxContextSize);
+        //        if (input == null) {
+        //            return CompletableFuture.completedFuture(Collections.emptyList());
+        //        }
 
-        return asyncPredictInternal(input);
+        return asyncPredictInternal(objectRef);
     }
 
     @Override
@@ -140,8 +151,12 @@ public abstract class AbstractOpenAIModelFunction extends AsyncPredictFunction {
 
     protected abstract CompletableFuture<Collection<RowData>> asyncPredictInternal(String input);
 
+    protected CompletableFuture<Collection<RowData>> asyncPredictInternal(ObjectRef input) {
+        throw new UnsupportedOperationException();
+    }
+
     protected void validateSingleColumnSchema(
-            ResolvedSchema schema, LogicalType expectedType, String inputOrOutput) {
+            ResolvedSchema schema, String inputOrOutput, Set<LogicalType> expectedTypes) {
         List<Column> columns = schema.getColumns();
         List<String> physicalColumnNames =
                 columns.stream()
@@ -156,13 +171,13 @@ public abstract class AbstractOpenAIModelFunction extends AsyncPredictFunction {
         }
 
         Column column = schema.getColumn(physicalColumnNames.get(0)).get();
-        if (!expectedType.equals(column.getDataType().getLogicalType())) {
+        if (!expectedTypes.contains(column.getDataType().getLogicalType())) {
             throw new IllegalArgumentException(
                     String.format(
                             "%s column %s should be %s, but is a %s.",
                             inputOrOutput,
                             column.getName(),
-                            expectedType,
+                            expectedTypes,
                             column.getDataType().getLogicalType()));
         }
 
@@ -333,5 +348,68 @@ public abstract class AbstractOpenAIModelFunction extends AsyncPredictFunction {
                     .map(value -> value.key + ":\t" + value.description)
                     .collect(Collectors.joining("\n"));
         }
+    }
+
+    /** The block size for byte operations in byte. */
+    private static final int BLOCKSIZE = 4096;
+
+    /**
+     * Copies from one stream to another.
+     *
+     * @param in InputStream to read from
+     * @param out OutputStream to write to
+     * @param buffSize the size of the buffer
+     * @param close whether or not close the InputStream and OutputStream at the end. The streams
+     *     are closed in the finally clause.
+     * @throws IOException thrown if an error occurred while writing to the output stream
+     */
+    public static void copyBytes(
+            final InputStream in, final OutputStream out, final int buffSize, final boolean close)
+            throws IOException {
+
+        @SuppressWarnings("resource")
+        final PrintStream ps = out instanceof PrintStream ? (PrintStream) out : null;
+        final byte[] buf = new byte[buffSize];
+        try {
+            int bytesRead = in.read(buf);
+            while (bytesRead >= 0) {
+                out.write(buf, 0, bytesRead);
+                if ((ps != null) && ps.checkError()) {
+                    throw new IOException("Unable to write to output stream.");
+                }
+                bytesRead = in.read(buf);
+            }
+        } finally {
+            if (close) {
+                out.close();
+                in.close();
+            }
+        }
+    }
+
+    /**
+     * Copies from one stream to another. <strong>closes the input and output streams at the
+     * end</strong>.
+     *
+     * @param in InputStream to read from
+     * @param out OutputStream to write to
+     * @throws IOException thrown if an I/O error occurs while copying
+     */
+    public static void copyBytes(final InputStream in, final OutputStream out) throws IOException {
+        copyBytes(in, out, BLOCKSIZE, true);
+    }
+
+    /**
+     * Copies from one stream to another.
+     *
+     * @param in InputStream to read from
+     * @param out OutputStream to write to
+     * @param close whether or not close the InputStream and OutputStream at the end. The streams
+     *     are closed in the finally clause.
+     * @throws IOException thrown if an I/O error occurs while copying
+     */
+    public static void copyBytes(final InputStream in, final OutputStream out, final boolean close)
+            throws IOException {
+        copyBytes(in, out, BLOCKSIZE, close);
     }
 }

@@ -179,16 +179,22 @@ abstract class AbstractBinaryWriter implements BinaryWriter {
             }
 
             int lenAndType = (len << 8) | type;
+            MemorySegment memorySegment = MemorySegmentFactory.wrapInt(lenAndType);
+            memorySegment.putInt(0, lenAndType);
+
             try (ByteArrayOutputStream out = new ByteArrayOutputStream(lenAndType + 1)) {
                 DataOutputView view = new DataOutputViewStreamWrapper(out);
-                out.write(lenAndType);
-                out.write(binaryString);
+                view.write(binaryString);
                 if (type == 2) {
                     ref.getAccessor().getSerializer().snapshotConfiguration().writeSnapshot(view);
                 }
                 ref.getAccessor().getSerializer().serialize(ref.getAccessor(), view);
                 byte[] bytes = out.toByteArray();
-                writeBytesToVarLenPart(pos, bytes, bytes.length);
+                writeSegmentsToVarLenPart(
+                        pos,
+                        new MemorySegment[] {memorySegment, MemorySegmentFactory.wrap(bytes)},
+                        0,
+                        bytes.length + 4);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }

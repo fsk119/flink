@@ -24,16 +24,31 @@ import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.binary.BinaryStringData;
 import org.apache.flink.table.factories.ModelProviderFactory;
 import org.apache.flink.table.functions.AsyncPredictFunction;
+import org.apache.flink.table.types.logical.ObjectRefType;
 import org.apache.flink.table.types.logical.VarCharType;
+import org.apache.flink.types.objectref.ObjectRef;
 
+import com.openai.models.ChatModel;
 import com.openai.models.ResponseFormatJsonObject;
 import com.openai.models.ResponseFormatText;
 import com.openai.models.chat.completions.ChatCompletion;
+import com.openai.models.chat.completions.ChatCompletionContentPart;
+import com.openai.models.chat.completions.ChatCompletionContentPartImage;
+import com.openai.models.chat.completions.ChatCompletionContentPartText;
 import com.openai.models.chat.completions.ChatCompletionCreateParams;
 import com.openai.models.chat.completions.ChatCompletionCreateParams.ResponseFormat;
+import com.openai.models.chat.completions.ChatCompletionUserMessageParam;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collection;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
@@ -58,8 +73,8 @@ public class OpenAIChatModelFunction extends AbstractOpenAIModelFunction {
         this.config = Configuration.fromMap(config.toMap());
         validateSingleColumnSchema(
                 factoryContext.getCatalogModel().getResolvedOutputSchema(),
-                new VarCharType(VarCharType.MAX_LENGTH),
-                "output");
+                "output",
+                Set.of(new VarCharType(VarCharType.MAX_LENGTH), new ObjectRefType()));
         this.outputColumnIndex = getOutputColumnIndex();
     }
 
@@ -103,6 +118,61 @@ public class OpenAIChatModelFunction extends AbstractOpenAIModelFunction {
                 .ifPresent(x -> builder.responseFormat(x.getResponseFormat()));
 
         return client.chat().completions().create(builder.build()).handle(this::convertToRowData);
+    }
+
+    @Override
+    public CompletableFuture<Collection<RowData>> asyncPredictInternal(ObjectRef objectRef) {
+        String base64Image;
+        try (InputStream stream = objectRef.getAccessor().getInputStream();
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                OutputStream base64Out = Base64.getEncoder().wrap(baos)) {
+            copyBytes(stream, base64Out);
+            base64Image = baos.toString(StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+        // 组合为 data URL（注意 MIME 类型根据你的图片调整）
+        String imageUrl = "data:image/jpeg;base64," + base64Image;
+
+        ChatCompletionContentPart logoContentPart =
+                ChatCompletionContentPart.ofImageUrl(
+                        ChatCompletionContentPartImage.builder()
+                                .imageUrl(
+                                        ChatCompletionContentPartImage.ImageUrl.builder()
+                                                .url(imageUrl)
+                                                .build())
+                                .build());
+        ChatCompletionCreateParams createParams =
+                ChatCompletionCreateParams.builder()
+                        .model(model)
+                        .maxCompletionTokens(2048)
+                        .addUserMessageOfArrayOfContentParts(List.of(logoContentPart))
+                        .build();
+
+        //        ChatCompletionUserMessageParam.builder().
+        //        ChatCompletionCreateParams.Builder builder =
+        //                ChatCompletionCreateParams.builder()
+        //                        .addSystemMessage(systemPrompt)
+        //                        .addUserMessage(input)
+        //                        .model(model);
+        //
+        // this.config.getOptional(OpenAIOptions.TEMPERATURE).ifPresent(builder::temperature);
+        //        this.config.getOptional(OpenAIOptions.TOP_P).ifPresent(builder::topP);
+        //        this.config
+        //                .getOptional(OpenAIOptions.STOP)
+        //                .ifPresent(x ->
+        // builder.stopOfStrings(Arrays.asList(x.split(STOP_SEPARATOR))));
+        //        this.config.getOptional(OpenAIOptions.MAX_TOKENS).ifPresent(builder::maxTokens);
+        //
+        // this.config.getOptional(OpenAIOptions.PRESENCE_PENALTY).ifPresent(builder::presencePenalty);
+        //        this.config.getOptional(OpenAIOptions.N).ifPresent(builder::n);
+        //        this.config.getOptional(OpenAIOptions.SEED).ifPresent(builder::seed);
+        //        this.config
+        //                .getOptional(OpenAIOptions.RESPONSE_FORMAT)
+        //                .ifPresent(x -> builder.responseFormat(x.getResponseFormat()));
+
+        return client.chat().completions().create(createParams).handle(this::convertToRowData);
     }
 
     private Collection<RowData> convertToRowData(

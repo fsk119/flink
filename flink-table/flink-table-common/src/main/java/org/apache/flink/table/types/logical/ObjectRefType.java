@@ -77,6 +77,8 @@ public class ObjectRefType extends LogicalType {
         return visitor.visit(this);
     }
 
+
+
     @Override
     public boolean equals(Object o) {
         return super.equals(o);

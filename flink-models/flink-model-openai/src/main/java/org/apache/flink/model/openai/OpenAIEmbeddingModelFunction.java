@@ -18,6 +18,7 @@
 package org.apache.flink.model.openai;
 
 import org.apache.flink.configuration.ReadableConfig;
+import org.apache.flink.core.fs.Path;
 import org.apache.flink.table.data.GenericArrayData;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
@@ -25,6 +26,10 @@ import org.apache.flink.table.factories.ModelProviderFactory;
 import org.apache.flink.table.functions.AsyncPredictFunction;
 import org.apache.flink.table.types.logical.ArrayType;
 import org.apache.flink.table.types.logical.FloatType;
+import org.apache.flink.types.Row;
+import org.apache.flink.types.objectref.ByteArrayAccessor;
+import org.apache.flink.types.objectref.FileAccessor;
+import org.apache.flink.types.objectref.ObjectRefData;
 
 import com.openai.models.embeddings.CreateEmbeddingResponse;
 import com.openai.models.embeddings.EmbeddingCreateParams;
@@ -32,7 +37,10 @@ import com.openai.models.embeddings.EmbeddingCreateParams.EncodingFormat;
 
 import javax.annotation.Nullable;
 
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
@@ -46,6 +54,7 @@ public class OpenAIEmbeddingModelFunction extends AbstractOpenAIModelFunction {
     @Nullable private final Long dimensions;
     private final int outputColumnIndex;
 
+
     public OpenAIEmbeddingModelFunction(
             ModelProviderFactory.Context factoryContext, ReadableConfig config) {
         super(factoryContext, config);
@@ -54,8 +63,8 @@ public class OpenAIEmbeddingModelFunction extends AbstractOpenAIModelFunction {
 
         validateSingleColumnSchema(
                 factoryContext.getCatalogModel().getResolvedOutputSchema(),
-                new ArrayType(new FloatType()),
-                "output");
+                "output",
+                Set.of(new ArrayType(new FloatType())));
         this.outputColumnIndex = getOutputColumnIndex();
     }
 
@@ -96,20 +105,21 @@ public class OpenAIEmbeddingModelFunction extends AbstractOpenAIModelFunction {
         if (throwable != null) {
             return handleErrorsAndRespond(throwable);
         }
+        throw new RuntimeException();
 
-        return response.data().stream()
-                .map(
-                        embedding -> {
-                            GenericRowData rowData =
-                                    new GenericRowData(this.outputColumnNames.size());
-                            rowData.setField(
-                                    outputColumnIndex,
-                                    new GenericArrayData(
-                                            embedding.embedding().stream()
-                                                    .map(Double::floatValue)
-                                                    .toArray(Float[]::new)));
-                            return rowData;
-                        })
-                .collect(Collectors.toList());
+        //        return response.data().stream()
+        //                .map(
+        //                        embedding -> {
+        //                            GenericRowData rowData =
+        //                                    new GenericRowData(this.outputColumnNames.size());
+        //                            rowData.setField(
+        //                                    outputColumnIndex,
+        //                                    new GenericArrayData(
+        //                                            embedding.embedding().stream()
+        //                                                    .map(Double::floatValue)
+        //                                                    .toArray(Float[]::new)));
+        //                            return rowData;
+        //                        })
+        //                .collect(Collectors.toList());
     }
 }

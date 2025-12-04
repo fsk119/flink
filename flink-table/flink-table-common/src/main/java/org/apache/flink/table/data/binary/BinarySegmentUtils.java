@@ -1100,7 +1100,7 @@ public final class BinarySegmentUtils {
         BinaryObjectRefData binaryObjectRefData = new BinaryObjectRefData();
         final int size = ((int) offsetAndSize);
         int offset = (int) (offsetAndSize >> 32);
-        binaryObjectRefData.pointTo(segments, size, offset);
+        binaryObjectRefData.pointTo(segments, baseOffset + offset, size);
         return binaryObjectRefData;
     }
 
