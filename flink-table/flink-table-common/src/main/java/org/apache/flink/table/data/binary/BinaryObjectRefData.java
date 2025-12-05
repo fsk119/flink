@@ -18,13 +18,13 @@
 
 package org.apache.flink.table.data.binary;
 
-import org.apache.flink.api.common.typeutils.TypeSerializer;;
-import org.apache.flink.api.common.typeutils.TypeSerializerSnapshotSerializationUtil;
+import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.core.memory.DataInputViewStreamWrapper;
 import org.apache.flink.core.memory.DataOutputView;
 import org.apache.flink.core.memory.DataOutputViewStreamWrapper;
 import org.apache.flink.core.memory.MemorySegment;
 import org.apache.flink.core.memory.MemorySegmentFactory;
+import org.apache.flink.table.data.DynamicTypeRegistry;
 import org.apache.flink.table.data.RawValueData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.types.objectref.ByteArrayAccessor;
@@ -104,13 +104,13 @@ public class BinaryObjectRefData extends LazyBinaryFormat<ObjectRef> implements 
                                     content.getOffset() + content.getSizeInBytes(),
                                     snapshotLen));
             try {
+                // TODO: here
+                // if its type is simple type
+                String className = new DataInputViewStreamWrapper(inputStream).readUTF();
                 serializer =
-                        (TypeSerializer)
-                                TypeSerializerSnapshotSerializationUtil
-                                        .readAndInstantiateSnapshotClass(
-                                                new DataInputViewStreamWrapper(inputStream),
-                                                Thread.currentThread().getContextClassLoader())
-                                        .restoreSerializer();
+                        DynamicTypeRegistry.getInstance()
+                                .getSerializer(
+                                        Thread.currentThread().getContextClassLoader(), className);
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
