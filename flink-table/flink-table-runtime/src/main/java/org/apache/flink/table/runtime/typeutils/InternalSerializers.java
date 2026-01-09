@@ -128,7 +128,8 @@ public final class InternalSerializers {
             case VARIANT:
                 return VariantSerializer.INSTANCE;
             case OBJECT_REF:
-                return ObjectRefSerializer.INSTANCE;
+                // TODO: check whether we can reuse same instance here.
+                return new ObjectRefSerializer();
             case NULL:
             case SYMBOL:
             case UNRESOLVED:

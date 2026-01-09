@@ -30,6 +30,7 @@ import org.apache.flink.api.common.cache.DistributedCache;
 import org.apache.flink.api.common.externalresource.ExternalResourceInfo;
 import org.apache.flink.api.common.functions.BroadcastVariableInitializer;
 import org.apache.flink.api.common.functions.RuntimeContext;
+import org.apache.flink.api.common.object.ObjectClient;
 import org.apache.flink.api.common.state.AggregatingState;
 import org.apache.flink.api.common.state.AggregatingStateDescriptor;
 import org.apache.flink.api.common.state.ListState;
@@ -101,6 +102,11 @@ class CepRuntimeContext implements RuntimeContext {
     @Override
     public DistributedCache getDistributedCache() {
         return runtimeContext.getDistributedCache();
+    }
+
+    @Override
+    public ObjectClient getObjectClient() {
+        return runtimeContext.getObjectClient();
     }
 
     @Override

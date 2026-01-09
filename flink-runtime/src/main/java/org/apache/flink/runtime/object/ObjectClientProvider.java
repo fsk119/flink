@@ -16,17 +16,13 @@
  * limitations under the License.
  */
 
-package org.apache.flink.types.objectref;
+package org.apache.flink.runtime.object;
 
-import org.apache.flink.annotation.PublicEvolving;
-import org.apache.flink.api.common.ExecutionConfig;
+import org.apache.flink.api.common.JobID;
+import org.apache.flink.api.common.object.ObjectClient;
 import org.apache.flink.configuration.Configuration;
 
-@PublicEvolving
-public interface ObjectRef {
+public interface ObjectClientProvider {
 
-    ObjectDescriptor toDescriptor();
-
-    /** Accessor to get the object */
-    ObjectAccessor getAccessor();
+    ObjectClient createObjectClient(JobID jobId, Configuration jobConfiguration);
 }

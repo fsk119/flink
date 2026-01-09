@@ -26,6 +26,7 @@ import org.apache.flink.api.common.aggregators.Aggregator;
 import org.apache.flink.api.common.aggregators.LongSumAggregator;
 import org.apache.flink.api.common.functions.Function;
 import org.apache.flink.api.common.functions.IterationRuntimeContext;
+import org.apache.flink.api.common.object.ObjectClient;
 import org.apache.flink.api.common.operators.util.JoinHashMap;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.common.typeutils.TypeSerializerFactory;
@@ -194,7 +195,8 @@ public abstract class AbstractIterativeTask<S extends Function, OT> extends Batc
                 env.getDistributedCacheEntries(),
                 this.accumulatorMap,
                 metrics,
-                env.getExternalResourceInfoProvider());
+                env.getExternalResourceInfoProvider(),
+                env.getObjectClient());
     }
 
     // --------------------------------------------------------------------------------------------
@@ -404,7 +406,8 @@ public abstract class AbstractIterativeTask<S extends Function, OT> extends Batc
                 Map<String, Future<Path>> cpTasks,
                 Map<String, Accumulator<?, ?>> accumulatorMap,
                 OperatorMetricGroup metrics,
-                ExternalResourceInfoProvider externalResourceInfoProvider) {
+                ExternalResourceInfoProvider externalResourceInfoProvider,
+                ObjectClient objectClient) {
             super(
                     jobInfo,
                     taskInfo,
@@ -413,7 +416,8 @@ public abstract class AbstractIterativeTask<S extends Function, OT> extends Batc
                     cpTasks,
                     accumulatorMap,
                     metrics,
-                    externalResourceInfoProvider);
+                    externalResourceInfoProvider,
+                    objectClient);
         }
 
         @Override

@@ -20,8 +20,8 @@ package org.apache.flink.table.runtime.typeutils;
 
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.typeutils.SimpleTypeSerializerSnapshot;
+import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.common.typeutils.TypeSerializerSnapshot;
-import org.apache.flink.api.common.typeutils.base.TypeSerializerSingleton;
 import org.apache.flink.core.memory.DataInputView;
 import org.apache.flink.core.memory.DataOutputView;
 import org.apache.flink.core.memory.MemorySegment;
@@ -30,16 +30,30 @@ import org.apache.flink.table.data.binary.BinaryObjectRefData;
 import org.apache.flink.table.data.binary.BinarySegmentUtils;
 import org.apache.flink.types.objectref.ObjectRef;
 import org.apache.flink.types.objectref.ObjectRefData;
+import org.apache.flink.types.objectref.ObjectAccessorRegistry;
 
 import java.io.IOException;
 
-public class ObjectRefSerializer extends TypeSerializerSingleton<ObjectRef> {
+public class ObjectRefSerializer extends TypeSerializer<ObjectRef> {
 
-    public static final ObjectRefSerializer INSTANCE = new ObjectRefSerializer();
+    private final ObjectAccessorRegistry registry;
+
+    public ObjectRefSerializer() {
+        this(new ObjectAccessorRegistry());
+    }
+
+    public ObjectRefSerializer(ObjectAccessorRegistry registry) {
+        this.registry = registry;
+    }
 
     @Override
     public boolean isImmutableType() {
         return false;
+    }
+
+    @Override
+    public TypeSerializer<ObjectRef> duplicate() {
+        return new ObjectRefSerializer();
     }
 
     @Override
@@ -64,12 +78,11 @@ public class ObjectRefSerializer extends TypeSerializerSingleton<ObjectRef> {
                         binaryObjectRefData.getSegments(),
                         binaryObjectRefData.getOffset(),
                         binaryObjectRefData.getSizeInBytes());
-        BinaryObjectRefData copied =
-                new BinaryObjectRefData(
-                        new MemorySegment[] {MemorySegmentFactory.wrap(copy)},
-                        0,
-                        binaryObjectRefData.getSizeInBytes());
-        return copied;
+        return new BinaryObjectRefData(
+                new MemorySegment[] {MemorySegmentFactory.wrap(copy)},
+                0,
+                binaryObjectRefData.getSizeInBytes(),
+                registry);
     }
 
     @Override
@@ -108,7 +121,7 @@ public class ObjectRefSerializer extends TypeSerializerSingleton<ObjectRef> {
         byte[] bytes = new byte[length];
         source.readFully(bytes);
         return new BinaryObjectRefData(
-                new MemorySegment[] {MemorySegmentFactory.wrap(bytes)}, 0, bytes.length);
+                new MemorySegment[] {MemorySegmentFactory.wrap(bytes)}, 0, bytes.length, registry);
     }
 
     @Override
@@ -124,6 +137,17 @@ public class ObjectRefSerializer extends TypeSerializerSingleton<ObjectRef> {
     }
 
     @Override
+    public boolean equals(Object obj) {
+        // TODO: rethink here.
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return 0;
+    }
+
+    @Override
     public TypeSerializerSnapshot<ObjectRef> snapshotConfiguration() {
         return new ObjectRefSerializerSnapshot();
     }
@@ -131,9 +155,10 @@ public class ObjectRefSerializer extends TypeSerializerSingleton<ObjectRef> {
     @Internal
     public static final class ObjectRefSerializerSnapshot
             extends SimpleTypeSerializerSnapshot<ObjectRef> {
+        // TODO: it's right?
 
         public ObjectRefSerializerSnapshot() {
-            super(() -> INSTANCE);
+            super(ObjectRefSerializer::new);
         }
     }
 }

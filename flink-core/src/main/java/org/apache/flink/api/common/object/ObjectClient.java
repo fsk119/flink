@@ -16,17 +16,12 @@
  * limitations under the License.
  */
 
-package org.apache.flink.types.objectref;
+package org.apache.flink.api.common.object;
 
-import org.apache.flink.annotation.PublicEvolving;
-import org.apache.flink.api.common.ExecutionConfig;
-import org.apache.flink.configuration.Configuration;
+import java.io.IOException;
+import java.io.InputStream;
 
-@PublicEvolving
-public interface ObjectRef {
+public interface ObjectClient {
 
-    ObjectDescriptor toDescriptor();
-
-    /** Accessor to get the object */
-    ObjectAccessor getAccessor();
+    InputStream open(String path) throws IOException;
 }

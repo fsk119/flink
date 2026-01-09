@@ -26,6 +26,7 @@ import org.apache.flink.api.common.externalresource.ExternalResourceInfo;
 import org.apache.flink.api.common.functions.BroadcastVariableInitializer;
 import org.apache.flink.api.common.functions.RuntimeContext;
 import org.apache.flink.api.common.functions.util.AbstractRuntimeUDFContext;
+import org.apache.flink.api.common.object.ObjectClient;
 import org.apache.flink.core.fs.Path;
 import org.apache.flink.metrics.groups.OperatorMetricGroup;
 import org.apache.flink.runtime.broadcast.BroadcastVariableMaterialization;
@@ -47,6 +48,7 @@ public class DistributedRuntimeUDFContext extends AbstractRuntimeUDFContext {
             new HashMap<String, BroadcastVariableMaterialization<?, ?>>();
 
     private final ExternalResourceInfoProvider externalResourceInfoProvider;
+    private final ObjectClient objectClient;
 
     public DistributedRuntimeUDFContext(
             JobInfo jobInfo,
@@ -56,7 +58,8 @@ public class DistributedRuntimeUDFContext extends AbstractRuntimeUDFContext {
             Map<String, Future<Path>> cpTasks,
             Map<String, Accumulator<?, ?>> accumulators,
             OperatorMetricGroup metrics,
-            ExternalResourceInfoProvider externalResourceInfoProvider) {
+            ExternalResourceInfoProvider externalResourceInfoProvider,
+            ObjectClient objectClient) {
         super(
                 jobInfo,
                 taskInfo,
@@ -67,6 +70,7 @@ public class DistributedRuntimeUDFContext extends AbstractRuntimeUDFContext {
                 metrics);
         this.externalResourceInfoProvider =
                 Preconditions.checkNotNull(externalResourceInfoProvider);
+        this.objectClient = objectClient;
     }
 
     @Override
@@ -115,6 +119,11 @@ public class DistributedRuntimeUDFContext extends AbstractRuntimeUDFContext {
             throw new IllegalArgumentException(
                     "The broadcast variable with name '" + name + "' has not been set.");
         }
+    }
+
+    @Override
+    public ObjectClient getObjectClient() {
+        return objectClient;
     }
 
     @Override

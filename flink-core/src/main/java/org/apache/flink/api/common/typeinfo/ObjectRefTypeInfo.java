@@ -21,23 +21,17 @@ package org.apache.flink.api.common.typeinfo;
 import org.apache.flink.api.common.serialization.SerializerConfig;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.common.typeutils.base.ObjectRefDataSerializer;
-import org.apache.flink.types.objectref.ObjectAccessor;
 import org.apache.flink.types.objectref.ObjectRefData;
+import org.apache.flink.types.objectref.ObjectAccessorRegistry;
 
-import javax.annotation.Nullable;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class ObjectRefTypeInfo extends TypeInformation<ObjectRefData> {
 
     public static final ObjectRefTypeInfo INSTANCE = new ObjectRefTypeInfo();
-    private @Nullable final TypeSerializer<ObjectAccessor> accessorSerializer;
 
-    public ObjectRefTypeInfo() {
-        this(null);
-    }
-
-    public ObjectRefTypeInfo(TypeSerializer<ObjectAccessor> accessorSerializer) {
-        this.accessorSerializer = accessorSerializer;
-    }
+    private final ConcurrentHashMap<SerializerConfig, ObjectRefDataSerializer> serializers =
+            new ConcurrentHashMap<>();
 
     @Override
     public boolean isBasicType() {
@@ -71,7 +65,13 @@ public class ObjectRefTypeInfo extends TypeInformation<ObjectRefData> {
 
     @Override
     public TypeSerializer<ObjectRefData> createSerializer(SerializerConfig config) {
-        return new ObjectRefDataSerializer();
+        return serializers.computeIfAbsent(
+                config,
+                serializerConfig -> {
+                    ObjectAccessorRegistry resolver = new ObjectAccessorRegistry();
+                    resolver.configure(config);
+                    return new ObjectRefDataSerializer(resolver);
+                });
     }
 
     @Override

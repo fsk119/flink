@@ -30,6 +30,7 @@ import org.apache.flink.api.common.accumulators.IntCounter;
 import org.apache.flink.api.common.accumulators.LongCounter;
 import org.apache.flink.api.common.cache.DistributedCache;
 import org.apache.flink.api.common.externalresource.ExternalResourceInfo;
+import org.apache.flink.api.common.object.ObjectClient;
 import org.apache.flink.api.common.state.AggregatingState;
 import org.apache.flink.api.common.state.AggregatingStateDescriptor;
 import org.apache.flink.api.common.state.ListState;
@@ -206,6 +207,8 @@ public interface RuntimeContext {
      * @return The distributed cache of the worker executing this instance.
      */
     DistributedCache getDistributedCache();
+
+    ObjectClient getObjectClient();
 
     // ------------------------------------------------------------------------
     //  Methods for accessing state

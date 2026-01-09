@@ -19,6 +19,8 @@
 package org.apache.flink.runtime.taskexecutor;
 
 import org.apache.flink.annotation.VisibleForTesting;
+import org.apache.flink.api.common.JobID;
+import org.apache.flink.api.common.object.ObjectClient;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.JMXServerOptions;
@@ -53,6 +55,8 @@ import org.apache.flink.runtime.metrics.ReporterSetupBuilder;
 import org.apache.flink.runtime.metrics.filter.DefaultReporterFilters;
 import org.apache.flink.runtime.metrics.groups.TaskManagerMetricGroup;
 import org.apache.flink.runtime.metrics.util.MetricUtils;
+import org.apache.flink.runtime.object.ObjectClientImpl;
+import org.apache.flink.runtime.object.ObjectClientProvider;
 import org.apache.flink.runtime.rpc.AddressResolution;
 import org.apache.flink.runtime.rpc.FatalErrorHandler;
 import org.apache.flink.runtime.rpc.RpcService;
@@ -269,7 +273,8 @@ public class TaskManagerRunner implements FatalErrorHandler {
                             externalResourceInfoProvider,
                             workingDirectory.unwrap(),
                             this,
-                            delegationTokenReceiverRepository);
+                            delegationTokenReceiverRepository,
+                            new ObjectClientProviderImpl(pluginManager));
 
             handleUnexpectedTaskExecutorServiceTermination();
 
@@ -574,7 +579,8 @@ public class TaskManagerRunner implements FatalErrorHandler {
             ExternalResourceInfoProvider externalResourceInfoProvider,
             WorkingDirectory workingDirectory,
             FatalErrorHandler fatalErrorHandler,
-            DelegationTokenReceiverRepository delegationTokenReceiverRepository)
+            DelegationTokenReceiverRepository delegationTokenReceiverRepository,
+            ObjectClientProvider objectClientProvider)
             throws Exception {
 
         final TaskExecutor taskExecutor =
@@ -590,7 +596,8 @@ public class TaskManagerRunner implements FatalErrorHandler {
                         externalResourceInfoProvider,
                         workingDirectory,
                         fatalErrorHandler,
-                        delegationTokenReceiverRepository);
+                        delegationTokenReceiverRepository,
+                        objectClientProvider);
 
         return TaskExecutorToServiceAdapter.createFor(taskExecutor);
     }
@@ -607,7 +614,8 @@ public class TaskManagerRunner implements FatalErrorHandler {
             ExternalResourceInfoProvider externalResourceInfoProvider,
             WorkingDirectory workingDirectory,
             FatalErrorHandler fatalErrorHandler,
-            DelegationTokenReceiverRepository delegationTokenReceiverRepository)
+            DelegationTokenReceiverRepository delegationTokenReceiverRepository,
+            ObjectClientProvider objectClientProvider)
             throws Exception {
 
         checkNotNull(configuration);
@@ -681,7 +689,8 @@ public class TaskManagerRunner implements FatalErrorHandler {
                 taskExecutorBlobService,
                 fatalErrorHandler,
                 new TaskExecutorPartitionTrackerImpl(taskManagerServices.getShuffleEnvironment()),
-                delegationTokenReceiverRepository);
+                delegationTokenReceiverRepository,
+                objectClientProvider);
     }
 
     /**
@@ -803,7 +812,8 @@ public class TaskManagerRunner implements FatalErrorHandler {
                 ExternalResourceInfoProvider externalResourceInfoProvider,
                 WorkingDirectory workingDirectory,
                 FatalErrorHandler fatalErrorHandler,
-                DelegationTokenReceiverRepository delegationTokenReceiverRepository)
+                DelegationTokenReceiverRepository delegationTokenReceiverRepository,
+                ObjectClientProvider objectClientProvider)
                 throws Exception;
     }
 
@@ -811,6 +821,20 @@ public class TaskManagerRunner implements FatalErrorHandler {
         void start();
 
         CompletableFuture<Void> getTerminationFuture();
+    }
+
+    static class ObjectClientProviderImpl implements ObjectClientProvider {
+
+        private final PluginManager pluginManager;
+
+        public ObjectClientProviderImpl(PluginManager pluginManager) {
+            this.pluginManager = pluginManager;
+        }
+
+        @Override
+        public ObjectClient createObjectClient(JobID jobId, Configuration jobConfiguration) {
+            return ObjectClientImpl.create(jobId, jobConfiguration, pluginManager);
+        }
     }
 
     public enum Result {

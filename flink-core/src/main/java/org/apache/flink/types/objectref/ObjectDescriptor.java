@@ -18,34 +18,45 @@
 
 package org.apache.flink.types.objectref;
 
+import java.io.Serializable;
+import java.net.URI;
 import java.util.Objects;
 
-public class ObjectRefData implements ObjectRef {
+public class ObjectDescriptor implements Serializable {
 
-    private final ObjectDescriptor descriptor;
-    private transient ObjectAccessorRegistry resolver;
+    private static final long serialVersionUID = 1L;
+    private static final long LENGTH_TO_END = -1;
 
-    public static ObjectRefData createEmptyInstance() {
-        return new ObjectRefData(null, null);
+    private final String uri;
+    private final long offset;
+    private final long length;
+
+    public static ObjectDescriptor createEmptyInstance() {
+        return new ObjectDescriptor("", 0, 0);
     }
 
-    public ObjectRefData(ObjectDescriptor descriptor, ObjectAccessorRegistry resolver) {
-        this.descriptor = descriptor;
-        this.resolver = resolver;
+    public ObjectDescriptor(String uri) {
+        this.uri = uri;
+        this.offset = 0;
+        this.length = LENGTH_TO_END;
     }
 
-    public void configure(ObjectAccessorRegistry resolver) {
-        this.resolver = resolver;
+    public ObjectDescriptor(String uri, long offset, long length) {
+        this.uri = uri;
+        this.offset = offset;
+        this.length = length;
     }
 
-    @Override
-    public ObjectDescriptor toDescriptor() {
-        return descriptor;
+    public String getURI() {
+        return uri;
     }
 
-    @Override
-    public ObjectAccessor getAccessor() {
-        return resolver.resolve(descriptor);
+    public long getOffset() {
+        return offset;
+    }
+
+    public long getLength() {
+        return length;
     }
 
     @Override
@@ -53,15 +64,15 @@ public class ObjectRefData implements ObjectRef {
         if (this == object) {
             return true;
         }
-        if (!(object instanceof ObjectRefData)) {
+        if (!(object instanceof ObjectDescriptor)) {
             return false;
         }
-        ObjectRefData that = (ObjectRefData) object;
-        return that.descriptor.equals(descriptor);
+        ObjectDescriptor that = (ObjectDescriptor) object;
+        return offset == that.offset && length == that.length && Objects.equals(uri, that.uri);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(descriptor);
+        return Objects.hash(uri, offset, length);
     }
 }

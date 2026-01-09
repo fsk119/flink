@@ -82,6 +82,7 @@ import org.apache.flink.runtime.metrics.MetricNames;
 import org.apache.flink.runtime.metrics.groups.TaskManagerJobMetricGroup;
 import org.apache.flink.runtime.metrics.groups.TaskManagerMetricGroup;
 import org.apache.flink.runtime.metrics.groups.TaskMetricGroup;
+import org.apache.flink.runtime.object.ObjectClientProvider;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.runtime.operators.coordination.TaskNotRunningException;
 import org.apache.flink.runtime.query.KvStateClientProxy;
@@ -294,6 +295,8 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
 
     private final DelegationTokenReceiverRepository delegationTokenReceiverRepository;
 
+    private final ObjectClientProvider objectClientProvider;
+
     // --------- resource manager --------
 
     @Nullable private ResourceManagerAddress resourceManagerAddress;
@@ -330,7 +333,8 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
             TaskExecutorBlobService taskExecutorBlobService,
             FatalErrorHandler fatalErrorHandler,
             TaskExecutorPartitionTracker partitionTracker,
-            DelegationTokenReceiverRepository delegationTokenReceiverRepository) {
+            DelegationTokenReceiverRepository delegationTokenReceiverRepository,
+            ObjectClientProvider objectClientProvider) {
 
         super(rpcService, RpcServiceUtils.createRandomName(TASK_MANAGER_NAME));
 
@@ -344,6 +348,7 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
         this.fatalErrorHandler = checkNotNull(fatalErrorHandler);
         this.partitionTracker = partitionTracker;
         this.delegationTokenReceiverRepository = checkNotNull(delegationTokenReceiverRepository);
+        this.objectClientProvider = checkNotNull(objectClientProvider);
         this.taskManagerMetricGroup = checkNotNull(taskManagerMetricGroup);
         this.taskExecutorBlobService = checkNotNull(taskExecutorBlobService);
         this.metricQueryServiceAddress = metricQueryServiceAddress;
@@ -2834,6 +2839,7 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
                     partitionTracker.createClusterPartitionReport());
         }
     }
+
 
     @VisibleForTesting
     static final class TaskExecutorJobServices implements JobTable.JobServices {

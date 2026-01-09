@@ -37,7 +37,7 @@ import java.util.Map;
  * for data types.
  */
 @PublicEvolving
-public interface SerializerConfig extends Serializable {
+public interface SerializerConfig extends Serializable, ReadableConfig {
     /** Returns the registered types with their Kryo Serializer classes. */
     LinkedHashMap<Class<?>, Class<? extends Serializer<?>>>
             getRegisteredTypesWithKryoSerializerClasses();

@@ -23,6 +23,7 @@ import org.apache.flink.api.common.SerializableSerializer;
 import org.apache.flink.api.common.functions.InvalidTypesException;
 import org.apache.flink.api.common.typeinfo.TypeInfoFactory;
 import org.apache.flink.api.java.typeutils.TypeExtractor;
+import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.ConfigurationUtils;
 import org.apache.flink.configuration.PipelineOptions;
@@ -39,6 +40,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /** The default implement of {@link SerializerConfig}. */
@@ -504,5 +506,20 @@ public final class SerializerConfigImpl implements SerializerConfig {
                 .forEach(newSerializerConfig::registerTypeWithTypeInfoFactory);
 
         return newSerializerConfig;
+    }
+
+    @Override
+    public <T> T get(ConfigOption<T> option) {
+        return configuration.get(option);
+    }
+
+    @Override
+    public <T> Optional<T> getOptional(ConfigOption<T> option) {
+        return configuration.getOptional(option);
+    }
+
+    @Override
+    public Map<String, String> toMap() {
+        return configuration.toMap();
     }
 }

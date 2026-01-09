@@ -73,6 +73,8 @@ import org.apache.flink.runtime.jobgraph.tasks.TaskOperatorEventGateway;
 import org.apache.flink.runtime.memory.MemoryManager;
 import org.apache.flink.runtime.memory.SharedResources;
 import org.apache.flink.runtime.metrics.groups.TaskMetricGroup;
+import org.apache.flink.runtime.object.ObjectClientImpl;
+import org.apache.flink.runtime.object.ObjectClientProvider;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.runtime.operators.coordination.TaskNotRunningException;
 import org.apache.flink.runtime.query.TaskKvStateRegistry;
@@ -278,6 +280,8 @@ public class Task
     /** The factory of channel state write request executor. */
     private final ChannelStateWriteRequestExecutorFactory channelStateExecutorFactory;
 
+    private final ObjectClientProvider objectClientProvider;
+
     // ------------------------------------------------------------------------
     //  Fields that control the task execution. All these fields are volatile
     //  (which means that they introduce memory barriers), to establish
@@ -342,7 +346,8 @@ public class Task
             @Nonnull TaskMetricGroup metricGroup,
             PartitionProducerStateChecker partitionProducerStateChecker,
             Executor executor,
-            ChannelStateWriteRequestExecutorFactory channelStateExecutorFactory) {
+            ChannelStateWriteRequestExecutorFactory channelStateExecutorFactory,
+            ObjectClientProvider objectClientProvider) {
 
         Preconditions.checkNotNull(jobInformation);
         Preconditions.checkNotNull(taskInformation);
@@ -402,6 +407,7 @@ public class Task
                 Preconditions.checkNotNull(partitionProducerStateChecker);
         this.executor = Preconditions.checkNotNull(executor);
         this.channelStateExecutorFactory = channelStateExecutorFactory;
+        this.objectClientProvider = objectClientProvider;
 
         // create the reader and writer structures
 
@@ -632,6 +638,8 @@ public class Task
             LOG.info("Loading JAR files for task {}.", this);
 
             userCodeClassLoader = createUserCodeClassloader();
+            ObjectClientImpl objClient =
+                    objectClientProvider.createObjectClient(jobId, jobConfiguration);
             final ExecutionConfig executionConfig =
                     serializedExecutionConfig.deserializeValue(userCodeClassLoader.asClassLoader());
             Configuration executionConfigConfiguration = executionConfig.toConfiguration();
@@ -730,7 +738,8 @@ public class Task
                             this,
                             externalResourceInfoProvider,
                             channelStateExecutorFactory,
-                            taskManagerActions);
+                            taskManagerActions,
+                            objClient);
 
             // Make sure the user code classloader is accessible thread-locally.
             // We are setting the correct context class loader before instantiating the invokable

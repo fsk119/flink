@@ -18,15 +18,32 @@
 
 package org.apache.flink.types.objectref;
 
-import org.apache.flink.annotation.PublicEvolving;
-import org.apache.flink.api.common.ExecutionConfig;
-import org.apache.flink.configuration.Configuration;
+import org.apache.flink.api.common.typeutils.TypeSerializer;
+import org.apache.flink.configuration.MemorySize;
+import org.apache.flink.core.fs.FileSystem;
+import org.apache.flink.core.fs.Path;
 
-@PublicEvolving
-public interface ObjectRef {
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
 
-    ObjectDescriptor toDescriptor();
+public class FileSystemAccessor implements ObjectAccessor {
 
-    /** Accessor to get the object */
-    ObjectAccessor getAccessor();
+    private final FileSystem fs;
+    private final Path path;
+
+    public FileSystemAccessor(FileSystem fs, Path path) {
+        this.fs = fs;
+        this.path = path;
+    }
+
+    @Override
+    public InputStream getInputStream() {
+        try {
+            return fs.open(path);
+        } catch (IOException e) {
+            throw new UncheckedIOException(
+                    String.format("Failed to open the stream for path: %s.", path), e);
+        }
+    }
 }

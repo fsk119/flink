@@ -18,6 +18,7 @@
 
 package org.apache.flink.types.objectref;
 
+import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.configuration.MemorySize;
 
@@ -28,11 +29,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 
-public interface ObjectAccessor extends Serializable {
+public interface ObjectAccessor {
 
     InputStream getInputStream();
 
-    MemorySize getSize();
-
-    TypeSerializer<ObjectAccessor> getSerializer();
 }

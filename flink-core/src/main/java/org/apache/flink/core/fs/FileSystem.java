@@ -568,6 +568,18 @@ public abstract class FileSystem implements IFileSystem {
         return defaultScheme != null ? defaultScheme : LocalFileSystem.getLocalFsURI();
     }
 
+    public static Map<String, FileSystemFactory> getAllFactories() {
+        LOCK.lock();
+        try {
+            if (FS_FACTORIES.isEmpty()) {
+                initializeWithoutPlugins(new Configuration());
+            }
+            return new HashMap<>(FS_FACTORIES);
+        } finally {
+            LOCK.unlock();
+        }
+    }
+
     // ------------------------------------------------------------------------
     //  File System Methods deprecated
     // ------------------------------------------------------------------------

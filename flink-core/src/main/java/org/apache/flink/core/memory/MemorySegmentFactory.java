@@ -75,6 +75,10 @@ public final class MemorySegmentFactory {
         return wrap(ByteBuffer.allocate(Integer.BYTES).putInt(value).array());
     }
 
+    public static MemorySegment wrapLong(long value) {
+        return wrap(ByteBuffer.allocate(Long.BYTES).putLong(value).array());
+    }
+
     /**
      * Allocates some unpooled memory and creates a new memory segment that represents that memory.
      *

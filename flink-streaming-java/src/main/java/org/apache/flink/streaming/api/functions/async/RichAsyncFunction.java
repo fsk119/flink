@@ -35,6 +35,7 @@ import org.apache.flink.api.common.functions.IterationRuntimeContext;
 import org.apache.flink.api.common.functions.OpenContext;
 import org.apache.flink.api.common.functions.RichFunction;
 import org.apache.flink.api.common.functions.RuntimeContext;
+import org.apache.flink.api.common.object.ObjectClient;
 import org.apache.flink.api.common.state.AggregatingState;
 import org.apache.flink.api.common.state.AggregatingStateDescriptor;
 import org.apache.flink.api.common.state.ListState;
@@ -153,6 +154,11 @@ public abstract class RichAsyncFunction<IN, OUT> extends AbstractRichFunction
         public DistributedCache getDistributedCache() {
             throw new UnsupportedOperationException(
                     "Distributed cache is not supported in rich async functions.");
+        }
+
+        @Override
+        public ObjectClient getObjectClient() {
+            return runtimeContext.getObjectClient();
         }
 
         @Override
@@ -305,6 +311,11 @@ public abstract class RichAsyncFunction<IN, OUT> extends AbstractRichFunction
         @Override
         public int getSuperstepNumber() {
             return iterationRuntimeContext.getSuperstepNumber();
+        }
+
+        @Override
+        public ObjectClient getObjectClient() {
+            return iterationRuntimeContext.getObjectClient();
         }
 
         // -----------------------------------------------------------------------------------

@@ -24,6 +24,7 @@ import org.apache.flink.api.common.accumulators.Accumulator;
 import org.apache.flink.api.common.externalresource.ExternalResourceInfo;
 import org.apache.flink.api.common.functions.BroadcastVariableInitializer;
 import org.apache.flink.api.common.functions.util.AbstractRuntimeUDFContext;
+import org.apache.flink.api.common.object.ObjectClient;
 import org.apache.flink.api.common.state.AggregatingState;
 import org.apache.flink.api.common.state.AggregatingStateDescriptor;
 import org.apache.flink.api.common.state.KeyedStateStore;
@@ -194,6 +195,11 @@ public class StreamingRuntimeContext extends AbstractRuntimeUDFContext {
             String name, BroadcastVariableInitializer<T, C> initializer) {
         throw new UnsupportedOperationException(
                 "Broadcast variables can only be used in DataSet programs");
+    }
+
+    @Override
+    public ObjectClient getObjectClient() {
+        return taskEnvironment.getObjectClient();
     }
 
     // ------------------------------------------------------------------------

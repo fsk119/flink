@@ -29,6 +29,7 @@ import org.apache.flink.api.common.accumulators.Accumulator;
 import org.apache.flink.api.common.externalresource.ExternalResourceInfo;
 import org.apache.flink.api.common.functions.BroadcastVariableInitializer;
 import org.apache.flink.api.common.functions.RuntimeContext;
+import org.apache.flink.api.common.object.ObjectClient;
 import org.apache.flink.core.fs.Path;
 import org.apache.flink.metrics.groups.OperatorMetricGroup;
 import org.apache.flink.util.SimpleUserCodeClassLoader;
@@ -139,6 +140,12 @@ public class RuntimeUDFContext extends AbstractRuntimeUDFContext {
                         "The broadcast variable with name '" + name + "' has not been set.");
             }
         }
+    }
+
+    @Override
+    public ObjectClient getObjectClient() {
+        throw new UnsupportedOperationException(
+                "Do not support object client in current environment");
     }
 
     @Override

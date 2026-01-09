@@ -24,6 +24,7 @@ import org.apache.flink.api.common.externalresource.ExternalResourceInfo;
 import org.apache.flink.api.common.functions.OpenContext;
 import org.apache.flink.api.common.functions.RuntimeContext;
 import org.apache.flink.api.common.functions.WithConfigurationOpenContext;
+import org.apache.flink.api.common.object.ObjectClient;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.MetricGroup;
 import org.apache.flink.metrics.groups.UnregisteredMetricsGroup;
@@ -123,6 +124,10 @@ public class FunctionContext {
                             + "at the current location.");
         }
         return context.getDistributedCache().getFile(name);
+    }
+
+    public ObjectClient getObjectClient() {
+        return context.getObjectClient();
     }
 
     /**

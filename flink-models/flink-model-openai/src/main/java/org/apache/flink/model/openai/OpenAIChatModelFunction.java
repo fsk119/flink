@@ -24,6 +24,7 @@ import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.binary.BinaryStringData;
 import org.apache.flink.table.factories.ModelProviderFactory;
 import org.apache.flink.table.functions.AsyncPredictFunction;
+import org.apache.flink.table.functions.FunctionContext;
 import org.apache.flink.table.types.logical.ObjectRefType;
 import org.apache.flink.table.types.logical.VarCharType;
 import org.apache.flink.types.objectref.ObjectRef;
@@ -76,6 +77,11 @@ public class OpenAIChatModelFunction extends AbstractOpenAIModelFunction {
                 "output",
                 Set.of(new VarCharType(VarCharType.MAX_LENGTH), new ObjectRefType()));
         this.outputColumnIndex = getOutputColumnIndex();
+    }
+
+    @Override
+    public void open(FunctionContext context) throws Exception {
+        super.open(context);
     }
 
     private int getOutputColumnIndex() {
