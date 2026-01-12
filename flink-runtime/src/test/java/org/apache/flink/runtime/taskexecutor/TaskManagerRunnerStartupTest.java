@@ -306,6 +306,7 @@ class TaskManagerRunnerStartupTest {
                 ExternalResourceInfoProvider.NO_EXTERNAL_RESOURCES,
                 workingDirectory,
                 error -> {},
-                new DelegationTokenReceiverRepository(configuration, null));
+                new DelegationTokenReceiverRepository(configuration, null),
+                null);
     }
 }

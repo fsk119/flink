@@ -24,6 +24,7 @@ import org.apache.flink.api.common.JobInfo;
 import org.apache.flink.api.common.JobInfoImpl;
 import org.apache.flink.api.common.TaskInfo;
 import org.apache.flink.api.common.TaskInfoImpl;
+import org.apache.flink.api.common.object.ObjectClient;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.core.fs.Path;
@@ -309,6 +310,11 @@ public class StreamMockEnvironment implements Environment {
     @Override
     public UserCodeClassLoader getUserCodeClassLoader() {
         return userCodeClassLoader;
+    }
+
+    @Override
+    public ObjectClient getObjectClient() {
+        throw new UnsupportedOperationException();
     }
 
     @Override

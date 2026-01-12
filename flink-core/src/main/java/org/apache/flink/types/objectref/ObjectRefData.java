@@ -23,29 +23,18 @@ import java.util.Objects;
 public class ObjectRefData implements ObjectRef {
 
     private final ObjectDescriptor descriptor;
-    private transient ObjectAccessorRegistry resolver;
 
     public static ObjectRefData createEmptyInstance() {
-        return new ObjectRefData(null, null);
+        return new ObjectRefData(null);
     }
 
-    public ObjectRefData(ObjectDescriptor descriptor, ObjectAccessorRegistry resolver) {
+    public ObjectRefData(ObjectDescriptor descriptor) {
         this.descriptor = descriptor;
-        this.resolver = resolver;
-    }
-
-    public void configure(ObjectAccessorRegistry resolver) {
-        this.resolver = resolver;
     }
 
     @Override
     public ObjectDescriptor toDescriptor() {
         return descriptor;
-    }
-
-    @Override
-    public ObjectAccessor getAccessor() {
-        return resolver.resolve(descriptor);
     }
 
     @Override

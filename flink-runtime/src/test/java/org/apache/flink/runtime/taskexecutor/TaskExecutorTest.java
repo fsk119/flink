@@ -2795,7 +2795,8 @@ class TaskExecutorTest {
                 NoOpTaskExecutorBlobService.INSTANCE,
                 testingFatalErrorHandler,
                 taskExecutorPartitionTracker,
-                new DelegationTokenReceiverRepository(configuration, null));
+                new DelegationTokenReceiverRepository(configuration, null),
+                null);
     }
 
     private TestingTaskExecutor createTestingTaskExecutor(TaskManagerServices taskManagerServices)

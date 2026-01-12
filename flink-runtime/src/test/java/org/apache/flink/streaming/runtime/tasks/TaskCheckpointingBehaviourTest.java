@@ -246,7 +246,8 @@ class TaskCheckpointingBehaviourTest {
                 UnregisteredMetricGroups.createUnregisteredTaskMetricGroup(),
                 mock(PartitionProducerStateChecker.class),
                 Executors.directExecutor(),
-                new ChannelStateWriteRequestExecutorFactory(jobInformation.getJobId()));
+                new ChannelStateWriteRequestExecutorFactory(jobInformation.getJobId()),
+                null);
     }
 
     // ------------------------------------------------------------------------

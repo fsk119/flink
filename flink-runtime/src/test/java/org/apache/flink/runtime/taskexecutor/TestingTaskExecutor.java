@@ -62,7 +62,8 @@ class TestingTaskExecutor extends TaskExecutor {
                 taskExecutorBlobService,
                 fatalErrorHandler,
                 partitionTracker,
-                delegationTokenReceiverRepository);
+                delegationTokenReceiverRepository,
+                null);
     }
 
     @Override

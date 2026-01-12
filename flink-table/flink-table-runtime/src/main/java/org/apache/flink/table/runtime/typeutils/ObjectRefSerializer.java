@@ -30,21 +30,15 @@ import org.apache.flink.table.data.binary.BinaryObjectRefData;
 import org.apache.flink.table.data.binary.BinarySegmentUtils;
 import org.apache.flink.types.objectref.ObjectRef;
 import org.apache.flink.types.objectref.ObjectRefData;
-import org.apache.flink.types.objectref.ObjectAccessorRegistry;
 
 import java.io.IOException;
 
 public class ObjectRefSerializer extends TypeSerializer<ObjectRef> {
 
-    private final ObjectAccessorRegistry registry;
 
     public ObjectRefSerializer() {
-        this(new ObjectAccessorRegistry());
     }
 
-    public ObjectRefSerializer(ObjectAccessorRegistry registry) {
-        this.registry = registry;
-    }
 
     @Override
     public boolean isImmutableType() {
@@ -81,8 +75,7 @@ public class ObjectRefSerializer extends TypeSerializer<ObjectRef> {
         return new BinaryObjectRefData(
                 new MemorySegment[] {MemorySegmentFactory.wrap(copy)},
                 0,
-                binaryObjectRefData.getSizeInBytes(),
-                registry);
+                binaryObjectRefData.getSizeInBytes());
     }
 
     @Override
@@ -121,7 +114,7 @@ public class ObjectRefSerializer extends TypeSerializer<ObjectRef> {
         byte[] bytes = new byte[length];
         source.readFully(bytes);
         return new BinaryObjectRefData(
-                new MemorySegment[] {MemorySegmentFactory.wrap(bytes)}, 0, bytes.length, registry);
+                new MemorySegment[] {MemorySegmentFactory.wrap(bytes)}, 0, bytes.length);
     }
 
     @Override

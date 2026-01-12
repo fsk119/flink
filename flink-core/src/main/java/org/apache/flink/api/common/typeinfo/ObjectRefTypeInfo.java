@@ -22,7 +22,6 @@ import org.apache.flink.api.common.serialization.SerializerConfig;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.common.typeutils.base.ObjectRefDataSerializer;
 import org.apache.flink.types.objectref.ObjectRefData;
-import org.apache.flink.types.objectref.ObjectAccessorRegistry;
 
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -66,12 +65,7 @@ public class ObjectRefTypeInfo extends TypeInformation<ObjectRefData> {
     @Override
     public TypeSerializer<ObjectRefData> createSerializer(SerializerConfig config) {
         return serializers.computeIfAbsent(
-                config,
-                serializerConfig -> {
-                    ObjectAccessorRegistry resolver = new ObjectAccessorRegistry();
-                    resolver.configure(config);
-                    return new ObjectRefDataSerializer(resolver);
-                });
+                config, serializerConfig -> new ObjectRefDataSerializer());
     }
 
     @Override

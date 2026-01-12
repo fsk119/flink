@@ -777,7 +777,9 @@ public class MiniCluster implements AutoCloseableAsync {
                             workingDirectory.createSubWorkingDirectory("tm_" + taskManagers.size()),
                             taskManagerTerminatingFatalErrorHandlerFactory.create(
                                     taskManagers.size()),
-                            delegationTokenReceiverRepository);
+                            delegationTokenReceiverRepository,
+                            new TaskManagerRunner.ObjectClientProviderImpl(
+                                    miniClusterConfiguration.getPluginManager()));
 
             taskExecutor.start();
             taskManagers.add(taskExecutor);

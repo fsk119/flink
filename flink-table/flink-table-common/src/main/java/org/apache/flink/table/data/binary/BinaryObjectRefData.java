@@ -24,7 +24,6 @@ import org.apache.flink.core.memory.MemorySegment;
 import org.apache.flink.core.memory.MemorySegmentFactory;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.types.objectref.ObjectAccessor;
-import org.apache.flink.types.objectref.ObjectAccessorRegistry;
 import org.apache.flink.types.objectref.ObjectDescriptor;
 import org.apache.flink.types.objectref.ObjectRef;
 import org.apache.flink.types.objectref.ObjectRefData;
@@ -35,19 +34,12 @@ import java.util.Arrays;
 
 public class BinaryObjectRefData extends LazyBinaryFormat<ObjectRef> implements ObjectRef {
 
-    private ObjectAccessorRegistry registry;
-
     public BinaryObjectRefData(ObjectRefData refData) {
         super(refData);
     }
 
-    public BinaryObjectRefData(
-            MemorySegment[] segments,
-            int offset,
-            int sizeInBytes,
-            ObjectAccessorRegistry registry) {
+    public BinaryObjectRefData(MemorySegment[] segments, int offset, int sizeInBytes) {
         super(null, new BinarySection(segments, offset, sizeInBytes));
-        this.registry = registry;
     }
 
     @Override
@@ -58,27 +50,19 @@ public class BinaryObjectRefData extends LazyBinaryFormat<ObjectRef> implements 
         return javaObject.toDescriptor();
     }
 
-    @Override
-    public ObjectAccessor getAccessor() {
-        if (javaObject == null) {
-            deserialize();
-        }
-        return javaObject.getAccessor();
-    }
-
     private void deserialize() {
         MemorySegment[] segments = binarySection.getSegments();
         String uri =
                 BinaryStringData.fromAddress(
                                 segments, getOffset(), binarySection.getSizeInBytes() - 16)
-                        .javaObject;
+                        .toString();
         long offset =
                 BinarySegmentUtils.getLong(
                         segments, getOffset() + binarySection.getSizeInBytes() - 16);
         long length =
                 BinarySegmentUtils.getLong(
                         segments, getOffset() + binarySection.getSizeInBytes() - 8);
-        javaObject = new ObjectRefData(new ObjectDescriptor(uri, offset, length), registry);
+        javaObject = new ObjectRefData(new ObjectDescriptor(uri, offset, length));
     }
 
     @Override

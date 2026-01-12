@@ -26,7 +26,4 @@ import org.apache.flink.configuration.Configuration;
 public interface ObjectRef {
 
     ObjectDescriptor toDescriptor();
-
-    /** Accessor to get the object */
-    ObjectAccessor getAccessor();
 }

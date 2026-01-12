@@ -161,7 +161,8 @@ public class TaskExecutorBuilder {
                 resolvedTaskExecutorBlobService,
                 fatalErrorHandler,
                 partitionTracker,
-                delegationTokenReceiverRepository);
+                delegationTokenReceiverRepository,
+                null);
     }
 
     public static TaskExecutorBuilder newBuilder(

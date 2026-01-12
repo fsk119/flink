@@ -181,7 +181,8 @@ class StreamTaskTerminationTest {
                         UnregisteredMetricGroups.createUnregisteredTaskMetricGroup(),
                         mock(PartitionProducerStateChecker.class),
                         Executors.directExecutor(),
-                        new ChannelStateWriteRequestExecutorFactory(jobInformation.getJobId()));
+                        new ChannelStateWriteRequestExecutorFactory(jobInformation.getJobId()),
+                        null);
 
         CompletableFuture<Void> taskRun =
                 CompletableFuture.runAsync(() -> task.run(), EXECUTOR_RESOURCE.getExecutor());

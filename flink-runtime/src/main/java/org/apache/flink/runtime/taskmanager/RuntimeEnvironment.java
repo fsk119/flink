@@ -118,7 +118,7 @@ public class RuntimeEnvironment implements Environment {
 
     @Nullable private CheckpointStorageAccess checkpointStorageAccess;
 
-    private final ObjectClientImpl objectClient;
+    private final ObjectClient objectClient;
 
     ChannelStateWriteRequestExecutorFactory channelStateExecutorFactory;
 
@@ -156,7 +156,7 @@ public class RuntimeEnvironment implements Environment {
             ExternalResourceInfoProvider externalResourceInfoProvider,
             ChannelStateWriteRequestExecutorFactory channelStateExecutorFactory,
             TaskManagerActions taskManagerActions,
-            ObjectClientImpl objectClient) {
+            ObjectClient objectClient) {
 
         this.jobId = checkNotNull(jobId);
         this.jobType = checkNotNull(jobType);

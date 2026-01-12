@@ -28,7 +28,6 @@ import org.apache.flink.table.types.logical.ArrayType;
 import org.apache.flink.table.types.logical.FloatType;
 import org.apache.flink.types.Row;
 import org.apache.flink.types.objectref.ByteArrayAccessor;
-import org.apache.flink.types.objectref.FileAccessor;
 import org.apache.flink.types.objectref.ObjectRefData;
 
 import com.openai.models.embeddings.CreateEmbeddingResponse;

@@ -30,7 +30,7 @@ import org.apache.flink.table.catalog.ObjectIdentifier;
 import org.apache.flink.table.planner.factories.TestValuesModelFactory;
 import org.apache.flink.table.planner.factories.TestValuesTableFactory;
 import org.apache.flink.types.Row;
-import org.apache.flink.types.objectref.FileAccessor;
+import org.apache.flink.types.objectref.ObjectDescriptor;
 import org.apache.flink.types.objectref.ObjectRefData;
 import org.apache.flink.types.variant.Variant;
 
@@ -132,9 +132,8 @@ public class OpenAIChatModelTest {
                         Row.of(
                                 1L,
                                 new ObjectRefData(
-                                        "image/png",
-                                        new FileAccessor(
-                                                new Path("/Users/ohmeatball/Desktop/image.png")))));
+                                        new ObjectDescriptor(
+                                                "/Users/ohmeatball/Desktop/image.png"))));
         tEnv.executeSql(
                 String.format(
                         "create table src(id BIGINT, image OBJECT_REF) with ("

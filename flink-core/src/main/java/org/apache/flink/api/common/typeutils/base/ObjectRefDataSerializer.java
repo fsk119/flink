@@ -26,7 +26,6 @@ import org.apache.flink.core.memory.DataInputView;
 import org.apache.flink.core.memory.DataOutputView;
 import org.apache.flink.types.objectref.ObjectDescriptor;
 import org.apache.flink.types.objectref.ObjectRefData;
-import org.apache.flink.types.objectref.ObjectAccessorRegistry;
 
 import java.io.IOException;
 
@@ -36,14 +35,8 @@ public class ObjectRefDataSerializer extends TypeSerializer<ObjectRefData> {
 
     public static final ObjectRefDataSerializer INSTANCE = new ObjectRefDataSerializer();
 
-    private final transient ObjectAccessorRegistry resolver;
 
     public ObjectRefDataSerializer() {
-        this(new ObjectAccessorRegistry());
-    }
-
-    public ObjectRefDataSerializer(ObjectAccessorRegistry resolver) {
-        this.resolver = resolver;
     }
 
     @Override
@@ -63,7 +56,7 @@ public class ObjectRefDataSerializer extends TypeSerializer<ObjectRefData> {
 
     @Override
     public ObjectRefData copy(ObjectRefData from) {
-        return new ObjectRefData(from.toDescriptor(), from.getAccessor());
+        return new ObjectRefData(from.toDescriptor());
     }
 
     @Override
@@ -89,7 +82,7 @@ public class ObjectRefDataSerializer extends TypeSerializer<ObjectRefData> {
         String uri = StringSerializer.INSTANCE.deserialize(source);
         long offset = LongSerializer.INSTANCE.deserialize(source);
         long length = LongSerializer.INSTANCE.deserialize(source);
-        return new ObjectRefData(new ObjectDescriptor(uri, offset, length), resolver);
+        return new ObjectRefData(new ObjectDescriptor(uri, offset, length));
     }
 
     @Override

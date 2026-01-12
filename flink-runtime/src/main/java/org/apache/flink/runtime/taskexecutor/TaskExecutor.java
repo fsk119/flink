@@ -865,7 +865,8 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
                             taskMetricGroup,
                             partitionStateChecker,
                             MdcUtils.scopeToJob(jobId, getRpcService().getScheduledExecutor()),
-                            channelStateExecutorFactoryManager.getOrCreateExecutorFactory(jobId));
+                            channelStateExecutorFactoryManager.getOrCreateExecutorFactory(jobId),
+                            objectClientProvider);
 
             taskMetricGroup.gauge(MetricNames.IS_BACK_PRESSURED, task::isBackPressured);
 

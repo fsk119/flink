@@ -129,7 +129,7 @@ public class OpenAIChatModelFunction extends AbstractOpenAIModelFunction {
     @Override
     public CompletableFuture<Collection<RowData>> asyncPredictInternal(ObjectRef objectRef) {
         String base64Image;
-        try (InputStream stream = objectRef.getAccessor().getInputStream();
+        try (InputStream stream = objectClient.open(objectRef.toDescriptor().getURI());
                 ByteArrayOutputStream baos = new ByteArrayOutputStream();
                 OutputStream base64Out = Base64.getEncoder().wrap(baos)) {
             copyBytes(stream, base64Out);

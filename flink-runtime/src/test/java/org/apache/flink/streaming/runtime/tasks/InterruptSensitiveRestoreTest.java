@@ -294,7 +294,8 @@ class InterruptSensitiveRestoreTest {
                 UnregisteredMetricGroups.createUnregisteredTaskMetricGroup(),
                 mock(PartitionProducerStateChecker.class),
                 mock(Executor.class),
-                new ChannelStateWriteRequestExecutorFactory(jobInformation.getJobId()));
+                new ChannelStateWriteRequestExecutorFactory(jobInformation.getJobId()),
+                null);
     }
 
     // ------------------------------------------------------------------------

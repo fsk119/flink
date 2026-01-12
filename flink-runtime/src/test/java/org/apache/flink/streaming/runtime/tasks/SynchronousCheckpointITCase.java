@@ -275,7 +275,8 @@ class SynchronousCheckpointITCase {
                 taskMetricGroup,
                 partitionProducerStateChecker,
                 executor,
-                new ChannelStateWriteRequestExecutorFactory(jobInformation.getJobId()));
+                new ChannelStateWriteRequestExecutorFactory(jobInformation.getJobId()),
+                null);
     }
 
     private static class TaskCleaner implements AutoCloseable {

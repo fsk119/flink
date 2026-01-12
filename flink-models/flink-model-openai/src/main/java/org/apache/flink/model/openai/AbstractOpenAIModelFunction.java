@@ -18,6 +18,7 @@
 
 package org.apache.flink.model.openai;
 
+import org.apache.flink.api.common.object.ObjectClient;
 import org.apache.flink.configuration.DescribedEnum;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.configuration.description.InlineElement;
@@ -86,6 +87,8 @@ public abstract class AbstractOpenAIModelFunction extends AsyncPredictFunction {
     private final ContextOverflowAction contextOverflowAction;
     protected final List<String> outputColumnNames;
 
+    protected transient ObjectClient objectClient;
+
     public AbstractOpenAIModelFunction(
             ModelProviderFactory.Context factoryContext, ReadableConfig config) {
         String endpoint = config.get(OpenAIOptions.ENDPOINT);
@@ -117,6 +120,8 @@ public abstract class AbstractOpenAIModelFunction extends AsyncPredictFunction {
         LOG.debug("Creating an OpenAI client.");
         this.client = OpenAIUtils.createAsyncClient(baseUrl, apiKey, numRetry);
         this.contextOverflowAction.initializeEncodingForContextLimit(model, maxContextSize);
+
+        objectClient = context.getObjectClient();
     }
 
     @Override

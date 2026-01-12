@@ -27,6 +27,7 @@ import org.apache.flink.table.planner.runtime.utils.StreamingTestBase;
 import org.apache.flink.types.ColumnList;
 import org.apache.flink.types.Row;
 import org.apache.flink.types.objectref.ByteArrayAccessor;
+import org.apache.flink.types.objectref.ObjectDescriptor;
 import org.apache.flink.types.objectref.ObjectRefData;
 import org.apache.flink.util.CollectionUtil;
 
@@ -64,11 +65,7 @@ public class MLPredictITCase extends StreamingTestBase {
                     Row.of(
                             1L,
                             new ObjectRefData(
-                                    "image/png", new ByteArrayAccessor(new byte[] {1, 2, 3}))),
-                    Row.of(
-                            2L,
-                            new ObjectRefData(
-                                    "image/png", new ByteArrayAccessor(new byte[] {4, 5, 6}))));
+                                    new ObjectDescriptor("/Users/ohmeatball/Desktop/image.png"))));
 
     private final Map<Row, List<Row>> id2features = new HashMap<>();
 
@@ -96,11 +93,8 @@ public class MLPredictITCase extends StreamingTestBase {
 
     {
         object2description.put(
-                Row.of(new ObjectRefData("image/png", new ByteArrayAccessor(new byte[] {1, 2, 3}))),
+                Row.of(new ObjectRefData(new ObjectDescriptor("/Users/ohmeatball/Desktop"))),
                 Collections.singletonList(Row.of("Dog")));
-        object2description.put(
-                Row.of(new ObjectRefData("image/png", new ByteArrayAccessor(new byte[] {4, 5, 6}))),
-                Collections.singletonList(Row.of("Fish")));
     }
 
     @BeforeEach

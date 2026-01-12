@@ -42,9 +42,7 @@ import org.apache.flink.table.runtime.typeutils.ArrayDataSerializer;
 import org.apache.flink.table.runtime.typeutils.MapDataSerializer;
 import org.apache.flink.table.runtime.typeutils.RawValueDataSerializer;
 import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
-import org.apache.flink.types.objectref.ByteArrayAccessor;
-import org.apache.flink.types.objectref.FileAccessor;
-import org.apache.flink.types.objectref.ObjectAccessor;
+
 import org.apache.flink.types.objectref.ObjectRef;
 import org.apache.flink.types.objectref.ObjectRefData;
 import org.apache.flink.types.variant.BinaryVariant;

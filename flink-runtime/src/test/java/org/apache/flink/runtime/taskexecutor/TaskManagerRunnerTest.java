@@ -33,6 +33,7 @@ import org.apache.flink.runtime.externalresource.ExternalResourceInfoProvider;
 import org.apache.flink.runtime.heartbeat.HeartbeatServices;
 import org.apache.flink.runtime.highavailability.HighAvailabilityServices;
 import org.apache.flink.runtime.metrics.MetricRegistry;
+import org.apache.flink.runtime.object.ObjectClientProvider;
 import org.apache.flink.runtime.rpc.FatalErrorHandler;
 import org.apache.flink.runtime.rpc.RpcService;
 import org.apache.flink.runtime.security.token.DelegationTokenReceiverRepository;
@@ -267,7 +268,8 @@ class TaskManagerRunnerTest {
                 externalResourceInfoProvider,
                 workingDirectory,
                 fatalErrorHandler,
-                delegationTokenReceiverRepository) -> taskExecutorService;
+                delegationTokenReceiverRepository,
+                objectClientProvider) -> taskExecutorService;
     }
 
     private static Configuration createConfiguration() {
@@ -309,7 +311,8 @@ class TaskManagerRunnerTest {
                 ExternalResourceInfoProvider externalResourceInfoProvider,
                 WorkingDirectory workingDirectory,
                 FatalErrorHandler fatalErrorHandler,
-                DelegationTokenReceiverRepository delegationTokenReceiverRepository) {
+                DelegationTokenReceiverRepository delegationTokenReceiverRepository,
+                ObjectClientProvider provider) {
             return TestingTaskExecutorService.newBuilder()
                     .setStartRunnable(
                             () ->

@@ -26,6 +26,7 @@ import org.apache.flink.api.common.JobInfoImpl;
 import org.apache.flink.api.common.TaskInfo;
 import org.apache.flink.api.common.TaskInfoImpl;
 import org.apache.flink.api.common.cache.DistributedCache;
+import org.apache.flink.api.common.object.ObjectClient;
 import org.apache.flink.api.common.time.Deadline;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.TaskManagerOptions;
@@ -638,7 +639,7 @@ public class Task
             LOG.info("Loading JAR files for task {}.", this);
 
             userCodeClassLoader = createUserCodeClassloader();
-            ObjectClientImpl objClient =
+            ObjectClient objClient =
                     objectClientProvider.createObjectClient(jobId, jobConfiguration);
             final ExecutionConfig executionConfig =
                     serializedExecutionConfig.deserializeValue(userCodeClassLoader.asClassLoader());

@@ -92,7 +92,8 @@ public abstract class ChainedDriver<IT, OT> implements Collector<IT> {
                             env.getDistributedCacheEntries(),
                             accumulatorMap,
                             metrics,
-                            env.getExternalResourceInfoProvider());
+                            env.getExternalResourceInfoProvider(),
+                            env.getObjectClient());
         }
 
         this.executionConfig = executionConfig;

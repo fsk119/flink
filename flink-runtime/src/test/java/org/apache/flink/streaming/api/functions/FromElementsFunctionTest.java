@@ -38,6 +38,7 @@ import org.apache.flink.streaming.api.operators.StreamSource;
 import org.apache.flink.streaming.util.AbstractStreamOperatorTestHarness;
 import org.apache.flink.types.Value;
 import org.apache.flink.types.objectref.ByteArrayAccessor;
+import org.apache.flink.types.objectref.ObjectDescriptor;
 import org.apache.flink.types.objectref.ObjectRefData;
 import org.apache.flink.util.InstantiationUtil;
 
@@ -82,9 +83,7 @@ class FromElementsFunctionTest {
     @Test
     void testObjectRef() throws Exception {
         ObjectRefData[] references = {
-            new ObjectRefData(
-                    "application/octet-stream", new ByteArrayAccessor(new byte[] {1, 2, 3})),
-            new ObjectRefData("application/octet-stream", new ByteArrayAccessor(new byte[] {4, 5})),
+            new ObjectRefData(new ObjectDescriptor("/Users/ohmeatball/Desktop/image.png"))
         };
 
         FromElementsFunction<ObjectRefData> source =

@@ -823,7 +823,7 @@ public class TaskManagerRunner implements FatalErrorHandler {
         CompletableFuture<Void> getTerminationFuture();
     }
 
-    static class ObjectClientProviderImpl implements ObjectClientProvider {
+    public static class ObjectClientProviderImpl implements ObjectClientProvider {
 
         private final PluginManager pluginManager;
 
